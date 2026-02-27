@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+option go_package = "rag_imtotext_texttoim/proto;llm_service";
+
+import "google/protobuf/timestamp.proto";
+
+service LlmService {
+  rpc GenerateContent (GenerateRequest) returns (GenerateResponse);
+  rpc GenerateContentStream (GenerateRequest) returns (stream GenerateResponse);
+};
+
+message GenerateRequest {
+  string model = 1;
+  repeated Content contents = 2;
+  InferenceParams params = 3;
+  string system_instruction = 4;
+}
+
+message GenerateResponse {
+  Content message = 1;
+  string finish_reason = 2;
+  UsageMetadata usage = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message Content {
+  string role = 1;
+  repeated Part parts = 2;
+}
+
+message Part {
+  oneof data {
+    string text = 1;
+    BlobData inline_data = 2;
+  }
+}
+
+message BlobData {
+  string mime_type = 1;
+  bytes data = 2;
+}
+
+message InferenceParams {
+  float temperature = 1;
+  float top_p = 2;
+  int32 top_k = 3;
+  int32 max_output_tokens = 4;
+  repeated string stop_sequences = 5;
+}
+
+message UsageMetadata {
+  int32 prompt_token_count = 1;
+  int32 candidates_token_count = 2;
+  int32 total_token_count = 3;
+}
