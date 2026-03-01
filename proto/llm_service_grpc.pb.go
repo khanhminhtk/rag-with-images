@@ -19,16 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LlmService_GenerateContent_FullMethodName       = "/LlmService/GenerateContent"
-	LlmService_GenerateContentStream_FullMethodName = "/LlmService/GenerateContentStream"
+	LlmService_GenerateTextToText_FullMethodName  = "/LlmService/GenerateTextToText"
+	LlmService_GenerateTextToImage_FullMethodName = "/LlmService/GenerateTextToImage"
 )
 
 // LlmServiceClient is the client API for LlmService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LlmServiceClient interface {
-	GenerateContent(ctx context.Context, in *GenerateRequest, opts ...grpc.CallOption) (*GenerateResponse, error)
-	GenerateContentStream(ctx context.Context, in *GenerateRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GenerateResponse], error)
+	GenerateTextToText(ctx context.Context, in *TextToTextRequest, opts ...grpc.CallOption) (*LLMResponse, error)
+	GenerateTextToImage(ctx context.Context, in *TextToImageRequest, opts ...grpc.CallOption) (*LLMResponse, error)
 }
 
 type llmServiceClient struct {
@@ -39,41 +39,32 @@ func NewLlmServiceClient(cc grpc.ClientConnInterface) LlmServiceClient {
 	return &llmServiceClient{cc}
 }
 
-func (c *llmServiceClient) GenerateContent(ctx context.Context, in *GenerateRequest, opts ...grpc.CallOption) (*GenerateResponse, error) {
+func (c *llmServiceClient) GenerateTextToText(ctx context.Context, in *TextToTextRequest, opts ...grpc.CallOption) (*LLMResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GenerateResponse)
-	err := c.cc.Invoke(ctx, LlmService_GenerateContent_FullMethodName, in, out, cOpts...)
+	out := new(LLMResponse)
+	err := c.cc.Invoke(ctx, LlmService_GenerateTextToText_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *llmServiceClient) GenerateContentStream(ctx context.Context, in *GenerateRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GenerateResponse], error) {
+func (c *llmServiceClient) GenerateTextToImage(ctx context.Context, in *TextToImageRequest, opts ...grpc.CallOption) (*LLMResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &LlmService_ServiceDesc.Streams[0], LlmService_GenerateContentStream_FullMethodName, cOpts...)
+	out := new(LLMResponse)
+	err := c.cc.Invoke(ctx, LlmService_GenerateTextToImage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[GenerateRequest, GenerateResponse]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
+	return out, nil
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type LlmService_GenerateContentStreamClient = grpc.ServerStreamingClient[GenerateResponse]
 
 // LlmServiceServer is the server API for LlmService service.
 // All implementations must embed UnimplementedLlmServiceServer
 // for forward compatibility.
 type LlmServiceServer interface {
-	GenerateContent(context.Context, *GenerateRequest) (*GenerateResponse, error)
-	GenerateContentStream(*GenerateRequest, grpc.ServerStreamingServer[GenerateResponse]) error
+	GenerateTextToText(context.Context, *TextToTextRequest) (*LLMResponse, error)
+	GenerateTextToImage(context.Context, *TextToImageRequest) (*LLMResponse, error)
 	mustEmbedUnimplementedLlmServiceServer()
 }
 
@@ -84,11 +75,11 @@ type LlmServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedLlmServiceServer struct{}
 
-func (UnimplementedLlmServiceServer) GenerateContent(context.Context, *GenerateRequest) (*GenerateResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GenerateContent not implemented")
+func (UnimplementedLlmServiceServer) GenerateTextToText(context.Context, *TextToTextRequest) (*LLMResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateTextToText not implemented")
 }
-func (UnimplementedLlmServiceServer) GenerateContentStream(*GenerateRequest, grpc.ServerStreamingServer[GenerateResponse]) error {
-	return status.Error(codes.Unimplemented, "method GenerateContentStream not implemented")
+func (UnimplementedLlmServiceServer) GenerateTextToImage(context.Context, *TextToImageRequest) (*LLMResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateTextToImage not implemented")
 }
 func (UnimplementedLlmServiceServer) mustEmbedUnimplementedLlmServiceServer() {}
 func (UnimplementedLlmServiceServer) testEmbeddedByValue()                    {}
@@ -111,34 +102,41 @@ func RegisterLlmServiceServer(s grpc.ServiceRegistrar, srv LlmServiceServer) {
 	s.RegisterService(&LlmService_ServiceDesc, srv)
 }
 
-func _LlmService_GenerateContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GenerateRequest)
+func _LlmService_GenerateTextToText_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TextToTextRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(LlmServiceServer).GenerateContent(ctx, in)
+		return srv.(LlmServiceServer).GenerateTextToText(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: LlmService_GenerateContent_FullMethodName,
+		FullMethod: LlmService_GenerateTextToText_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LlmServiceServer).GenerateContent(ctx, req.(*GenerateRequest))
+		return srv.(LlmServiceServer).GenerateTextToText(ctx, req.(*TextToTextRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _LlmService_GenerateContentStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GenerateRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _LlmService_GenerateTextToImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TextToImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(LlmServiceServer).GenerateContentStream(m, &grpc.GenericServerStream[GenerateRequest, GenerateResponse]{ServerStream: stream})
+	if interceptor == nil {
+		return srv.(LlmServiceServer).GenerateTextToImage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LlmService_GenerateTextToImage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LlmServiceServer).GenerateTextToImage(ctx, req.(*TextToImageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type LlmService_GenerateContentStreamServer = grpc.ServerStreamingServer[GenerateResponse]
 
 // LlmService_ServiceDesc is the grpc.ServiceDesc for LlmService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -148,16 +146,14 @@ var LlmService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*LlmServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GenerateContent",
-			Handler:    _LlmService_GenerateContent_Handler,
+			MethodName: "GenerateTextToText",
+			Handler:    _LlmService_GenerateTextToText_Handler,
 		},
-	},
-	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "GenerateContentStream",
-			Handler:       _LlmService_GenerateContentStream_Handler,
-			ServerStreams: true,
+			MethodName: "GenerateTextToImage",
+			Handler:    _LlmService_GenerateTextToImage_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "proto/llm_service.proto",
 }

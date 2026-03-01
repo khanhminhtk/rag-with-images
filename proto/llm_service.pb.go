@@ -9,7 +9,6 @@ package llm_service
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -22,30 +21,31 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type GenerateRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Model             string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
-	Contents          []*Content             `protobuf:"bytes,2,rep,name=contents,proto3" json:"contents,omitempty"`
-	Params            *InferenceParams       `protobuf:"bytes,3,opt,name=params,proto3" json:"params,omitempty"`
-	SystemInstruction string                 `protobuf:"bytes,4,opt,name=system_instruction,json=systemInstruction,proto3" json:"system_instruction,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+type TextToTextRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Model           string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	Temperature     float32                `protobuf:"fixed32,2,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	Prompt          string                 `protobuf:"bytes,3,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	History         []*ChatHistory         `protobuf:"bytes,4,rep,name=history,proto3" json:"history,omitempty"`
+	StructureOutput map[string]string      `protobuf:"bytes,5,rep,name=structure_output,json=structureOutput,proto3" json:"structure_output,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
-func (x *GenerateRequest) Reset() {
-	*x = GenerateRequest{}
+func (x *TextToTextRequest) Reset() {
+	*x = TextToTextRequest{}
 	mi := &file_proto_llm_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GenerateRequest) String() string {
+func (x *TextToTextRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GenerateRequest) ProtoMessage() {}
+func (*TextToTextRequest) ProtoMessage() {}
 
-func (x *GenerateRequest) ProtoReflect() protoreflect.Message {
+func (x *TextToTextRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_llm_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -57,393 +57,73 @@ func (x *GenerateRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateRequest.ProtoReflect.Descriptor instead.
-func (*GenerateRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use TextToTextRequest.ProtoReflect.Descriptor instead.
+func (*TextToTextRequest) Descriptor() ([]byte, []int) {
 	return file_proto_llm_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GenerateRequest) GetModel() string {
+func (x *TextToTextRequest) GetModel() string {
 	if x != nil {
 		return x.Model
 	}
 	return ""
 }
 
-func (x *GenerateRequest) GetContents() []*Content {
-	if x != nil {
-		return x.Contents
-	}
-	return nil
-}
-
-func (x *GenerateRequest) GetParams() *InferenceParams {
-	if x != nil {
-		return x.Params
-	}
-	return nil
-}
-
-func (x *GenerateRequest) GetSystemInstruction() string {
-	if x != nil {
-		return x.SystemInstruction
-	}
-	return ""
-}
-
-type GenerateResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       *Content               `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
-	FinishReason  string                 `protobuf:"bytes,2,opt,name=finish_reason,json=finishReason,proto3" json:"finish_reason,omitempty"`
-	Usage         *UsageMetadata         `protobuf:"bytes,3,opt,name=usage,proto3" json:"usage,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GenerateResponse) Reset() {
-	*x = GenerateResponse{}
-	mi := &file_proto_llm_service_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GenerateResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GenerateResponse) ProtoMessage() {}
-
-func (x *GenerateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GenerateResponse.ProtoReflect.Descriptor instead.
-func (*GenerateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *GenerateResponse) GetMessage() *Content {
-	if x != nil {
-		return x.Message
-	}
-	return nil
-}
-
-func (x *GenerateResponse) GetFinishReason() string {
-	if x != nil {
-		return x.FinishReason
-	}
-	return ""
-}
-
-func (x *GenerateResponse) GetUsage() *UsageMetadata {
-	if x != nil {
-		return x.Usage
-	}
-	return nil
-}
-
-func (x *GenerateResponse) GetCreatedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return nil
-}
-
-type Content struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
-	Parts         []*Part                `protobuf:"bytes,2,rep,name=parts,proto3" json:"parts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Content) Reset() {
-	*x = Content{}
-	mi := &file_proto_llm_service_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Content) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Content) ProtoMessage() {}
-
-func (x *Content) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Content.ProtoReflect.Descriptor instead.
-func (*Content) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *Content) GetRole() string {
-	if x != nil {
-		return x.Role
-	}
-	return ""
-}
-
-func (x *Content) GetParts() []*Part {
-	if x != nil {
-		return x.Parts
-	}
-	return nil
-}
-
-type Part struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Data:
-	//
-	//	*Part_Text
-	//	*Part_InlineData
-	Data          isPart_Data `protobuf_oneof:"data"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Part) Reset() {
-	*x = Part{}
-	mi := &file_proto_llm_service_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Part) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Part) ProtoMessage() {}
-
-func (x *Part) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Part.ProtoReflect.Descriptor instead.
-func (*Part) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *Part) GetData() isPart_Data {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-func (x *Part) GetText() string {
-	if x != nil {
-		if x, ok := x.Data.(*Part_Text); ok {
-			return x.Text
-		}
-	}
-	return ""
-}
-
-func (x *Part) GetInlineData() *BlobData {
-	if x != nil {
-		if x, ok := x.Data.(*Part_InlineData); ok {
-			return x.InlineData
-		}
-	}
-	return nil
-}
-
-type isPart_Data interface {
-	isPart_Data()
-}
-
-type Part_Text struct {
-	Text string `protobuf:"bytes,1,opt,name=text,proto3,oneof"`
-}
-
-type Part_InlineData struct {
-	InlineData *BlobData `protobuf:"bytes,2,opt,name=inline_data,json=inlineData,proto3,oneof"`
-}
-
-func (*Part_Text) isPart_Data() {}
-
-func (*Part_InlineData) isPart_Data() {}
-
-type BlobData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MimeType      string                 `protobuf:"bytes,1,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
-	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BlobData) Reset() {
-	*x = BlobData{}
-	mi := &file_proto_llm_service_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BlobData) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BlobData) ProtoMessage() {}
-
-func (x *BlobData) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BlobData.ProtoReflect.Descriptor instead.
-func (*BlobData) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *BlobData) GetMimeType() string {
-	if x != nil {
-		return x.MimeType
-	}
-	return ""
-}
-
-func (x *BlobData) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-type InferenceParams struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Temperature     float32                `protobuf:"fixed32,1,opt,name=temperature,proto3" json:"temperature,omitempty"`
-	TopP            float32                `protobuf:"fixed32,2,opt,name=top_p,json=topP,proto3" json:"top_p,omitempty"`
-	TopK            int32                  `protobuf:"varint,3,opt,name=top_k,json=topK,proto3" json:"top_k,omitempty"`
-	MaxOutputTokens int32                  `protobuf:"varint,4,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
-	StopSequences   []string               `protobuf:"bytes,5,rep,name=stop_sequences,json=stopSequences,proto3" json:"stop_sequences,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *InferenceParams) Reset() {
-	*x = InferenceParams{}
-	mi := &file_proto_llm_service_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *InferenceParams) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*InferenceParams) ProtoMessage() {}
-
-func (x *InferenceParams) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use InferenceParams.ProtoReflect.Descriptor instead.
-func (*InferenceParams) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *InferenceParams) GetTemperature() float32 {
+func (x *TextToTextRequest) GetTemperature() float32 {
 	if x != nil {
 		return x.Temperature
 	}
 	return 0
 }
 
-func (x *InferenceParams) GetTopP() float32 {
+func (x *TextToTextRequest) GetPrompt() string {
 	if x != nil {
-		return x.TopP
+		return x.Prompt
 	}
-	return 0
+	return ""
 }
 
-func (x *InferenceParams) GetTopK() int32 {
+func (x *TextToTextRequest) GetHistory() []*ChatHistory {
 	if x != nil {
-		return x.TopK
-	}
-	return 0
-}
-
-func (x *InferenceParams) GetMaxOutputTokens() int32 {
-	if x != nil {
-		return x.MaxOutputTokens
-	}
-	return 0
-}
-
-func (x *InferenceParams) GetStopSequences() []string {
-	if x != nil {
-		return x.StopSequences
+		return x.History
 	}
 	return nil
 }
 
-type UsageMetadata struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	PromptTokenCount     int32                  `protobuf:"varint,1,opt,name=prompt_token_count,json=promptTokenCount,proto3" json:"prompt_token_count,omitempty"`
-	CandidatesTokenCount int32                  `protobuf:"varint,2,opt,name=candidates_token_count,json=candidatesTokenCount,proto3" json:"candidates_token_count,omitempty"`
-	TotalTokenCount      int32                  `protobuf:"varint,3,opt,name=total_token_count,json=totalTokenCount,proto3" json:"total_token_count,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+func (x *TextToTextRequest) GetStructureOutput() map[string]string {
+	if x != nil {
+		return x.StructureOutput
+	}
+	return nil
 }
 
-func (x *UsageMetadata) Reset() {
-	*x = UsageMetadata{}
-	mi := &file_proto_llm_service_proto_msgTypes[6]
+type TextToImageRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Model           string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	Temperature     float32                `protobuf:"fixed32,2,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	ImagePath       string                 `protobuf:"bytes,3,opt,name=image_path,json=imagePath,proto3" json:"image_path,omitempty"`
+	Prompt          string                 `protobuf:"bytes,4,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	History         []*ChatHistory         `protobuf:"bytes,5,rep,name=history,proto3" json:"history,omitempty"`
+	StructureOutput map[string]string      `protobuf:"bytes,6,rep,name=structure_output,json=structureOutput,proto3" json:"structure_output,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *TextToImageRequest) Reset() {
+	*x = TextToImageRequest{}
+	mi := &file_proto_llm_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UsageMetadata) String() string {
+func (x *TextToImageRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UsageMetadata) ProtoMessage() {}
+func (*TextToImageRequest) ProtoMessage() {}
 
-func (x *UsageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[6]
+func (x *TextToImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_llm_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -454,73 +134,195 @@ func (x *UsageMetadata) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UsageMetadata.ProtoReflect.Descriptor instead.
-func (*UsageMetadata) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use TextToImageRequest.ProtoReflect.Descriptor instead.
+func (*TextToImageRequest) Descriptor() ([]byte, []int) {
+	return file_proto_llm_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *UsageMetadata) GetPromptTokenCount() int32 {
+func (x *TextToImageRequest) GetModel() string {
 	if x != nil {
-		return x.PromptTokenCount
+		return x.Model
+	}
+	return ""
+}
+
+func (x *TextToImageRequest) GetTemperature() float32 {
+	if x != nil {
+		return x.Temperature
 	}
 	return 0
 }
 
-func (x *UsageMetadata) GetCandidatesTokenCount() int32 {
+func (x *TextToImageRequest) GetImagePath() string {
 	if x != nil {
-		return x.CandidatesTokenCount
+		return x.ImagePath
 	}
-	return 0
+	return ""
 }
 
-func (x *UsageMetadata) GetTotalTokenCount() int32 {
+func (x *TextToImageRequest) GetPrompt() string {
 	if x != nil {
-		return x.TotalTokenCount
+		return x.Prompt
 	}
-	return 0
+	return ""
+}
+
+func (x *TextToImageRequest) GetHistory() []*ChatHistory {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+func (x *TextToImageRequest) GetStructureOutput() map[string]string {
+	if x != nil {
+		return x.StructureOutput
+	}
+	return nil
+}
+
+type ChatHistory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatHistory) Reset() {
+	*x = ChatHistory{}
+	mi := &file_proto_llm_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatHistory) ProtoMessage() {}
+
+func (x *ChatHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_llm_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatHistory.ProtoReflect.Descriptor instead.
+func (*ChatHistory) Descriptor() ([]byte, []int) {
+	return file_proto_llm_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ChatHistory) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ChatHistory) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type LLMResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	Json          map[string]string      `protobuf:"bytes,2,rep,name=json,proto3" json:"json,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LLMResponse) Reset() {
+	*x = LLMResponse{}
+	mi := &file_proto_llm_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LLMResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LLMResponse) ProtoMessage() {}
+
+func (x *LLMResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_llm_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LLMResponse.ProtoReflect.Descriptor instead.
+func (*LLMResponse) Descriptor() ([]byte, []int) {
+	return file_proto_llm_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *LLMResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *LLMResponse) GetJson() map[string]string {
+	if x != nil {
+		return x.Json
+	}
+	return nil
 }
 
 var File_proto_llm_service_proto protoreflect.FileDescriptor
 
 const file_proto_llm_service_proto_rawDesc = "" +
 	"\n" +
-	"\x17proto/llm_service.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa6\x01\n" +
-	"\x0fGenerateRequest\x12\x14\n" +
-	"\x05model\x18\x01 \x01(\tR\x05model\x12$\n" +
-	"\bcontents\x18\x02 \x03(\v2\b.ContentR\bcontents\x12(\n" +
-	"\x06params\x18\x03 \x01(\v2\x10.InferenceParamsR\x06params\x12-\n" +
-	"\x12system_instruction\x18\x04 \x01(\tR\x11systemInstruction\"\xbc\x01\n" +
-	"\x10GenerateResponse\x12\"\n" +
-	"\amessage\x18\x01 \x01(\v2\b.ContentR\amessage\x12#\n" +
-	"\rfinish_reason\x18\x02 \x01(\tR\ffinishReason\x12$\n" +
-	"\x05usage\x18\x03 \x01(\v2\x0e.UsageMetadataR\x05usage\x129\n" +
+	"\x17proto/llm_service.proto\"\xa3\x02\n" +
+	"\x11TextToTextRequest\x12\x14\n" +
+	"\x05model\x18\x01 \x01(\tR\x05model\x12 \n" +
+	"\vtemperature\x18\x02 \x01(\x02R\vtemperature\x12\x16\n" +
+	"\x06prompt\x18\x03 \x01(\tR\x06prompt\x12&\n" +
+	"\ahistory\x18\x04 \x03(\v2\f.ChatHistoryR\ahistory\x12R\n" +
+	"\x10structure_output\x18\x05 \x03(\v2'.TextToTextRequest.StructureOutputEntryR\x0fstructureOutput\x1aB\n" +
+	"\x14StructureOutputEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc4\x02\n" +
+	"\x12TextToImageRequest\x12\x14\n" +
+	"\x05model\x18\x01 \x01(\tR\x05model\x12 \n" +
+	"\vtemperature\x18\x02 \x01(\x02R\vtemperature\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\":\n" +
-	"\aContent\x12\x12\n" +
-	"\x04role\x18\x01 \x01(\tR\x04role\x12\x1b\n" +
-	"\x05parts\x18\x02 \x03(\v2\x05.PartR\x05parts\"R\n" +
-	"\x04Part\x12\x14\n" +
-	"\x04text\x18\x01 \x01(\tH\x00R\x04text\x12,\n" +
-	"\vinline_data\x18\x02 \x01(\v2\t.BlobDataH\x00R\n" +
-	"inlineDataB\x06\n" +
-	"\x04data\";\n" +
-	"\bBlobData\x12\x1b\n" +
-	"\tmime_type\x18\x01 \x01(\tR\bmimeType\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"\xb0\x01\n" +
-	"\x0fInferenceParams\x12 \n" +
-	"\vtemperature\x18\x01 \x01(\x02R\vtemperature\x12\x13\n" +
-	"\x05top_p\x18\x02 \x01(\x02R\x04topP\x12\x13\n" +
-	"\x05top_k\x18\x03 \x01(\x05R\x04topK\x12*\n" +
-	"\x11max_output_tokens\x18\x04 \x01(\x05R\x0fmaxOutputTokens\x12%\n" +
-	"\x0estop_sequences\x18\x05 \x03(\tR\rstopSequences\"\x9f\x01\n" +
-	"\rUsageMetadata\x12,\n" +
-	"\x12prompt_token_count\x18\x01 \x01(\x05R\x10promptTokenCount\x124\n" +
-	"\x16candidates_token_count\x18\x02 \x01(\x05R\x14candidatesTokenCount\x12*\n" +
-	"\x11total_token_count\x18\x03 \x01(\x05R\x0ftotalTokenCount2\x84\x01\n" +
+	"image_path\x18\x03 \x01(\tR\timagePath\x12\x16\n" +
+	"\x06prompt\x18\x04 \x01(\tR\x06prompt\x12&\n" +
+	"\ahistory\x18\x05 \x03(\v2\f.ChatHistoryR\ahistory\x12S\n" +
+	"\x10structure_output\x18\x06 \x03(\v2(.TextToImageRequest.StructureOutputEntryR\x0fstructureOutput\x1aB\n" +
+	"\x14StructureOutputEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\";\n" +
+	"\vChatHistory\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\x86\x01\n" +
+	"\vLLMResponse\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\x12*\n" +
+	"\x04json\x18\x02 \x03(\v2\x16.LLMResponse.JsonEntryR\x04json\x1a7\n" +
+	"\tJsonEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012~\n" +
 	"\n" +
 	"LlmService\x126\n" +
-	"\x0fGenerateContent\x12\x10.GenerateRequest\x1a\x11.GenerateResponse\x12>\n" +
-	"\x15GenerateContentStream\x12\x10.GenerateRequest\x1a\x11.GenerateResponse0\x01B)Z'rag_imtotext_texttoim/proto;llm_serviceb\x06proto3"
+	"\x12GenerateTextToText\x12\x12.TextToTextRequest\x1a\f.LLMResponse\x128\n" +
+	"\x13GenerateTextToImage\x12\x13.TextToImageRequest\x1a\f.LLMResponseB)Z'rag_imtotext_texttoim/proto;llm_serviceb\x06proto3"
 
 var (
 	file_proto_llm_service_proto_rawDescOnce sync.Once
@@ -536,42 +338,35 @@ func file_proto_llm_service_proto_rawDescGZIP() []byte {
 
 var file_proto_llm_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_proto_llm_service_proto_goTypes = []any{
-	(*GenerateRequest)(nil),       // 0: GenerateRequest
-	(*GenerateResponse)(nil),      // 1: GenerateResponse
-	(*Content)(nil),               // 2: Content
-	(*Part)(nil),                  // 3: Part
-	(*BlobData)(nil),              // 4: BlobData
-	(*InferenceParams)(nil),       // 5: InferenceParams
-	(*UsageMetadata)(nil),         // 6: UsageMetadata
-	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
+	(*TextToTextRequest)(nil),  // 0: TextToTextRequest
+	(*TextToImageRequest)(nil), // 1: TextToImageRequest
+	(*ChatHistory)(nil),        // 2: ChatHistory
+	(*LLMResponse)(nil),        // 3: LLMResponse
+	nil,                        // 4: TextToTextRequest.StructureOutputEntry
+	nil,                        // 5: TextToImageRequest.StructureOutputEntry
+	nil,                        // 6: LLMResponse.JsonEntry
 }
 var file_proto_llm_service_proto_depIdxs = []int32{
-	2, // 0: GenerateRequest.contents:type_name -> Content
-	5, // 1: GenerateRequest.params:type_name -> InferenceParams
-	2, // 2: GenerateResponse.message:type_name -> Content
-	6, // 3: GenerateResponse.usage:type_name -> UsageMetadata
-	7, // 4: GenerateResponse.created_at:type_name -> google.protobuf.Timestamp
-	3, // 5: Content.parts:type_name -> Part
-	4, // 6: Part.inline_data:type_name -> BlobData
-	0, // 7: LlmService.GenerateContent:input_type -> GenerateRequest
-	0, // 8: LlmService.GenerateContentStream:input_type -> GenerateRequest
-	1, // 9: LlmService.GenerateContent:output_type -> GenerateResponse
-	1, // 10: LlmService.GenerateContentStream:output_type -> GenerateResponse
-	9, // [9:11] is the sub-list for method output_type
-	7, // [7:9] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	2, // 0: TextToTextRequest.history:type_name -> ChatHistory
+	4, // 1: TextToTextRequest.structure_output:type_name -> TextToTextRequest.StructureOutputEntry
+	2, // 2: TextToImageRequest.history:type_name -> ChatHistory
+	5, // 3: TextToImageRequest.structure_output:type_name -> TextToImageRequest.StructureOutputEntry
+	6, // 4: LLMResponse.json:type_name -> LLMResponse.JsonEntry
+	0, // 5: LlmService.GenerateTextToText:input_type -> TextToTextRequest
+	1, // 6: LlmService.GenerateTextToImage:input_type -> TextToImageRequest
+	3, // 7: LlmService.GenerateTextToText:output_type -> LLMResponse
+	3, // 8: LlmService.GenerateTextToImage:output_type -> LLMResponse
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_proto_llm_service_proto_init() }
 func file_proto_llm_service_proto_init() {
 	if File_proto_llm_service_proto != nil {
 		return
-	}
-	file_proto_llm_service_proto_msgTypes[3].OneofWrappers = []any{
-		(*Part_Text)(nil),
-		(*Part_InlineData)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
