@@ -1,0 +1,35 @@
+models:
+  jina_text_encoder:
+    model_path: "/home/minhtk/code/rag_imtotext_texttoim/third_party/onnx_c++/model/onnx/jina_text.onnx"
+    inputs:
+      input_ids:
+        shape: ["batch_size", "sequence_length"]
+        type: "int64"
+      attention_mask:
+        shape: ["batch_size", "sequence_length"]
+        type: "int64"
+
+    outputs:
+      shape: ["batch_size", "768"]
+      type: "float32"
+
+    session_config:
+      intra_op_num_threads: 4
+      inter_op_num_threads: 2
+      execution_mode: "sequential"  # parallel, sequential
+      graph_optimization_level: "enable_extended"
+
+      execution_provider:
+        type: "cpu"
+        device: 0
+        options: {}
+
+      memory_config:
+        memory_pattern: "enable"
+        cpu_mem_arena: "enable"
+        arena_config:
+          initial_chunk_size_bytes: 1048576  # 1MB
+          max_mem: 0
+          arena_extend_strategy: 0
+
+      log_severity_level: "warning"

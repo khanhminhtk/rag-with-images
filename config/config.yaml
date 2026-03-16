@@ -1,8 +1,0 @@
-qdrant:
-    bootstrap: "localhost"
-    port: 6333
-    use_gRPC: false
-llm:
-    model: "models/gemini-3-flash-preview"
-    temp: 0.7
-    apikey: "${gemini_api_key}"
