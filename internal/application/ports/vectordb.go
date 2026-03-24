@@ -54,6 +54,7 @@ func (f Filter) IsEmpty() bool {
 }
 
 type SearchQuery struct {
+	QueryText string
 	CollectionName string
 	VectorName     string
 	Vector         []float32
@@ -80,6 +81,10 @@ type CollectionStore interface {
 	CreateCollection(ctx context.Context, schema CollectionSchema) error
 	EnsureCollection(ctx context.Context, schema CollectionSchema) error
 	DeleteCollection(ctx context.Context, collectionName string) error
+}
+
+type Client interface {
+
 }
 
 type QdrantStore interface {
