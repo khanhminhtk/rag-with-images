@@ -54,7 +54,7 @@ func (f Filter) IsEmpty() bool {
 }
 
 type SearchQuery struct {
-	QueryText string
+	QueryText      string
 	CollectionName string
 	VectorName     string
 	Vector         []float32
@@ -63,6 +63,12 @@ type SearchQuery struct {
 	WithPayload    bool
 	Filter         *Filter
 }
+
+const (
+	VectorNameTextDense  = "text_dense"
+	VectorNameImageDense = "image_dense"
+	VectorNameBM25       = "bm25"
+)
 
 type SearchResult struct {
 	Point *domain.PointObject
@@ -84,7 +90,6 @@ type CollectionStore interface {
 }
 
 type Client interface {
-
 }
 
 type QdrantStore interface {
