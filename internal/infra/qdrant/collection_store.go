@@ -41,15 +41,24 @@ func toQdrantDistance(d ports.DistanceMetric) qdrant.Distance {
 }
 
 func (c *CollectionStore) CreateCollection(ctx context.Context, schema ports.CollectionSchema) error {
+	source := qdrantSource("CollectionStore.CreateCollection")
+	c.appLogger.Debug(
+		"create collection started",
+		"source", source,
+		"collection", schema.Name,
+		"vector_count", len(schema.Vectors),
+	)
+
 	if len(schema.Vectors) == 0 {
 		err := fmt.Errorf("collection schema must contain at least one vector config")
-		c.appLogger.Error("create collection validation failed", err, "collection", schema.Name)
-		return err
+		c.appLogger.Error("create collection validation failed", err, "source", source, "collection", schema.Name)
+		return fmt.Errorf("%s: %w", source, err)
 	}
 
 	req := &qdrant.CreateCollection{
-		CollectionName: schema.Name,
-		OnDiskPayload:  &schema.OnDiskPayload,
+		CollectionName:      schema.Name,
+		OnDiskPayload:       &schema.OnDiskPayload,
+		SparseVectorsConfig: buildBM25SparseVectorsConfig(schema.OptimizersMemmap),
 	}
 
 	if schema.Shards > 0 {
@@ -92,48 +101,68 @@ func (c *CollectionStore) CreateCollection(ctx context.Context, schema ports.Col
 	}
 
 	if err := c.client.CreateCollection(ctx, req); err != nil {
-		c.appLogger.Error("create collection failed", err, "collection", schema.Name)
-		return err
+		c.appLogger.Error("create collection failed", err, "source", source, "collection", schema.Name)
+		return fmt.Errorf("%s: create collection failed: %w", source, err)
 	}
 
-	c.appLogger.Info("create collection success", "collection", schema.Name, "vector_count", len(schema.Vectors))
+	c.appLogger.Info("create collection success", "source", source, "collection", schema.Name, "vector_count", len(schema.Vectors))
 	return nil
 }
 
+func buildBM25SparseVectorsConfig(onDisk bool) *qdrant.SparseVectorConfig {
+	modifier := qdrant.Modifier_Idf
+	return qdrant.NewSparseVectorsConfig(map[string]*qdrant.SparseVectorParams{
+		vectorNameBM25: {
+			Modifier: &modifier,
+			Index: &qdrant.SparseIndexConfig{
+				OnDisk: &onDisk,
+			},
+		},
+	})
+}
+
 func (c *CollectionStore) CollectionExists(ctx context.Context, collectionName string) (bool, error) {
+	source := qdrantSource("CollectionStore.CollectionExists")
 	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	exists, err := c.client.CollectionExists(timeoutCtx, collectionName)
 	if err != nil {
-		c.appLogger.Error("collection exists check failed", err, "collection", collectionName)
-		return false, err
+		c.appLogger.Error("collection exists check failed", err, "source", source, "collection", collectionName)
+		return false, fmt.Errorf("%s: collection exists check failed: %w", source, err)
 	}
 
-	c.appLogger.Info("collection exists check success", "collection", collectionName, "exists", exists)
+	c.appLogger.Info("collection exists check success", "source", source, "collection", collectionName, "exists", exists)
 	return exists, nil
 }
 
 func (c *CollectionStore) EnsureCollection(ctx context.Context, schema ports.CollectionSchema) error {
+	source := qdrantSource("CollectionStore.EnsureCollection")
 	exists, err := c.CollectionExists(ctx, schema.Name)
 	if err != nil {
-		return err
+		c.appLogger.Error("ensure collection failed to check existence", err, "source", source, "collection", schema.Name)
+		return fmt.Errorf("%s: collection exists check failed: %w", source, err)
 	}
 	if exists {
-		c.appLogger.Info("ensure collection skipped, already exists", "collection", schema.Name)
+		c.appLogger.Info("ensure collection skipped, already exists", "source", source, "collection", schema.Name)
 		return nil
 	}
 
-	c.appLogger.Info("ensure collection creating", "collection", schema.Name)
-	return c.CreateCollection(ctx, schema)
+	c.appLogger.Info("ensure collection creating", "source", source, "collection", schema.Name)
+	if err := c.CreateCollection(ctx, schema); err != nil {
+		c.appLogger.Error("ensure collection create failed", err, "source", source, "collection", schema.Name)
+		return fmt.Errorf("%s: create collection failed: %w", source, err)
+	}
+	return nil
 }
 
 func (c *CollectionStore) DeleteCollection(ctx context.Context, collectionName string) error {
+	source := qdrantSource("CollectionStore.DeleteCollection")
 	if err := c.client.DeleteCollection(ctx, collectionName); err != nil {
-		c.appLogger.Error("delete collection failed", err, "collection", collectionName)
-		return err
+		c.appLogger.Error("delete collection failed", err, "source", source, "collection", collectionName)
+		return fmt.Errorf("%s: delete collection failed: %w", source, err)
 	}
 
-	c.appLogger.Info("delete collection success", "collection", collectionName)
+	c.appLogger.Info("delete collection success", "source", source, "collection", collectionName)
 	return nil
 }
