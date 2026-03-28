@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+option go_package = "rag_imagetotext_texttoimage/proto;proto";
+
+service LlmService {
+  rpc GenerateTextToText (TextToTextRequest) returns (LLMResponse);
+  rpc GenerateTextToImage (TextToImageRequest) returns (LLMResponse);
+};
+
+message TextToTextRequest {
+  string model = 1;
+  float temperature = 2;
+  string prompt = 3;
+  repeated ChatHistory history = 4;
+  map<string, string> structure_output = 5;
+}
+
+message TextToImageRequest {
+  string model = 1;
+  float temperature = 2;
+  string image_path = 3;
+  string prompt = 4;
+  repeated ChatHistory history = 5;
+  map<string, string> structure_output = 6;
+}
+
+message ChatHistory {
+  string role = 1;
+  string content = 2;
+}
+
+message LLMResponse {
+  string text = 1;
+  map<string, string> json = 2;
+}

@@ -24,6 +24,7 @@ type QdrantConfig struct {
 	Bootstrap string `yaml:"bootstrap"`
 	Port      string `yaml:"port"`
 	UseGRPC   bool   `yaml:"use_gRPC"`
+	LogPath   string `yaml:"log_path"`
 }
 type ConfigLoader struct {
 	envPath  string

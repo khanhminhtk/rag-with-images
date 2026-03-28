@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+option go_package = "rag_imagetotext_texttoimage/proto;proto";
+
+service RagService {
+  // Collection management
+  rpc CreateCollection(SchemaCollection) returns (ResponseCreateCollection);
+  rpc DeleteCollection(DeleteCollectionRequest) returns (ResponseDeleteCollection);
+
+  // Point operations
+  rpc InsertPoint(InsertPointRequest) returns (ResponseInsertPoint);
+  rpc SearchPoint(SearchPointRequest) returns (ResponseSearchPoint);
+  rpc DeletePointFilter(DeletePointFilterRequest) returns (ResponseDeletePointFilter);
+}
+
+// ─────────────────────────────────────────────
+// Collection messages
+// ─────────────────────────────────────────────
+
+// CollectionVectorConfig maps to ports.CollectionVectorConfig.
+// distance: "cosine" | "dot" | "euclid" | "manhattan"
+message CollectionVectorConfig {
+  string name = 1;
+  uint64 size = 2;
+  string distance = 3;
+}
+
+// SchemaCollection maps to ports.CollectionSchema.
+message SchemaCollection {
+  string name = 1;
+  repeated CollectionVectorConfig vectors = 2;
+  uint32 shards = 3;
+  uint32 replication_factor = 4;
+  bool on_disk_payload = 5;
+  bool optimizers_memmap = 6;
+}
+
+message ResponseCreateCollection {
+  string name = 1;
+  bool status = 2;
+}
+
+message DeleteCollectionRequest {
+  string name = 1;
+}
+
+message ResponseDeleteCollection {
+  string name = 1;
+  bool status = 2;
+}
+
+// ─────────────────────────────────────────────
+// Point messages
+// ─────────────────────────────────────────────
+
+// Point represents a single Qdrant vector point.
+
+message VectorObject {
+  string name = 1;
+  repeated float vector = 2;
+}
+
+message Point {
+  repeated VectorObject vectorObject = 1;
+  map<string, string> payload = 2;
+}
+
+message InsertPointRequest {
+  string collection_name = 1;
+  repeated Point points = 2;
+}
+
+message ResponseInsertPoint {
+  string collection_name = 1;
+  bool status = 2;
+}
+
+// ─────────────────────────────────────────────
+// Search messages
+// ─────────────────────────────────────────────
+
+// MatchOperator maps to ports.MatchOperator: "eq" or "in".
+// For operator "eq":  set string_value / bool_value / int_value.
+// For operator "in":  set string_values / int_values.
+message FieldCondition {
+  string key = 1;
+  string operator = 2;          // "eq" | "in"
+
+  // Scalar value (used with operator "eq")
+  oneof scalar_value {
+    string string_value = 3;
+    bool   bool_value   = 4;
+    int64  int_value    = 5;
+  }
+
+  // List values (used with operator "in")
+  repeated string string_values = 6;
+  repeated int64  int_values    = 7;
+}
+
+// Filter maps to ports.Filter.
+message Filter {
+  repeated FieldCondition must     = 1;
+  repeated FieldCondition should   = 2;
+  repeated FieldCondition must_not = 3;
+}
+
+// SearchPointRequest maps to ports.SearchQuery.
+// vector_name: "text_dense" | "image_dense" | "bm25"
+message SearchPointRequest {
+  string collection_name  = 1;
+  string vector_name      = 2;
+  repeated float vector   = 3;   // dense vector; leave empty for BM25/lexical
+  string query_text       = 4;   // text for BM25/lexical search
+  uint64 limit            = 5;
+  optional float score_threshold = 6;
+  bool with_payload       = 7;
+  optional Filter filter  = 8;
+}
+
+// SearchResultItem is a single scored point returned from search.
+message SearchResultItem {
+  string id                    = 1;
+  float  score                 = 2;
+  map<string, string> payload  = 3;
+}
+
+message ResponseSearchPoint {
+  string collection_name              = 1;
+  repeated SearchResultItem results   = 2;
+}
+
+// ─────────────────────────────────────────────
+// Delete by filter messages
+// ─────────────────────────────────────────────
+
+// DeletePointFilterRequest maps to (collectionName + ports.Filter).
+message DeletePointFilterRequest {
+  string collection_name = 1;
+  Filter filter          = 2;
+}
+
+message ResponseDeletePointFilter {
+  string collection_name = 1;
+  bool status            = 2;
+}
