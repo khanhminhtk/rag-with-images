@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "rag_imtotext_texttoim/proto;llm_service";
+option go_package = "rag_imagetotext_texttoimage/proto;proto";
 
 service LlmService {
   rpc GenerateTextToText (TextToTextRequest) returns (LLMResponse);

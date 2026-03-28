@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.19.6
-// source: proto/llm_service.proto
+// source: llm_service.proto
 
-package llm_service
+package proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -34,7 +34,7 @@ type TextToTextRequest struct {
 
 func (x *TextToTextRequest) Reset() {
 	*x = TextToTextRequest{}
-	mi := &file_proto_llm_service_proto_msgTypes[0]
+	mi := &file_llm_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +46,7 @@ func (x *TextToTextRequest) String() string {
 func (*TextToTextRequest) ProtoMessage() {}
 
 func (x *TextToTextRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[0]
+	mi := &file_llm_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +59,7 @@ func (x *TextToTextRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TextToTextRequest.ProtoReflect.Descriptor instead.
 func (*TextToTextRequest) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{0}
+	return file_llm_service_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *TextToTextRequest) GetModel() string {
@@ -111,7 +111,7 @@ type TextToImageRequest struct {
 
 func (x *TextToImageRequest) Reset() {
 	*x = TextToImageRequest{}
-	mi := &file_proto_llm_service_proto_msgTypes[1]
+	mi := &file_llm_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -123,7 +123,7 @@ func (x *TextToImageRequest) String() string {
 func (*TextToImageRequest) ProtoMessage() {}
 
 func (x *TextToImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[1]
+	mi := &file_llm_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -136,7 +136,7 @@ func (x *TextToImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TextToImageRequest.ProtoReflect.Descriptor instead.
 func (*TextToImageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{1}
+	return file_llm_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *TextToImageRequest) GetModel() string {
@@ -191,7 +191,7 @@ type ChatHistory struct {
 
 func (x *ChatHistory) Reset() {
 	*x = ChatHistory{}
-	mi := &file_proto_llm_service_proto_msgTypes[2]
+	mi := &file_llm_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -203,7 +203,7 @@ func (x *ChatHistory) String() string {
 func (*ChatHistory) ProtoMessage() {}
 
 func (x *ChatHistory) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[2]
+	mi := &file_llm_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -216,7 +216,7 @@ func (x *ChatHistory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatHistory.ProtoReflect.Descriptor instead.
 func (*ChatHistory) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{2}
+	return file_llm_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ChatHistory) GetRole() string {
@@ -243,7 +243,7 @@ type LLMResponse struct {
 
 func (x *LLMResponse) Reset() {
 	*x = LLMResponse{}
-	mi := &file_proto_llm_service_proto_msgTypes[3]
+	mi := &file_llm_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -255,7 +255,7 @@ func (x *LLMResponse) String() string {
 func (*LLMResponse) ProtoMessage() {}
 
 func (x *LLMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_service_proto_msgTypes[3]
+	mi := &file_llm_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -268,7 +268,7 @@ func (x *LLMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMResponse.ProtoReflect.Descriptor instead.
 func (*LLMResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_service_proto_rawDescGZIP(), []int{3}
+	return file_llm_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LLMResponse) GetText() string {
@@ -285,11 +285,11 @@ func (x *LLMResponse) GetJson() map[string]string {
 	return nil
 }
 
-var File_proto_llm_service_proto protoreflect.FileDescriptor
+var File_llm_service_proto protoreflect.FileDescriptor
 
-const file_proto_llm_service_proto_rawDesc = "" +
+const file_llm_service_proto_rawDesc = "" +
 	"\n" +
-	"\x17proto/llm_service.proto\"\xa3\x02\n" +
+	"\x11llm_service.proto\"\xa3\x02\n" +
 	"\x11TextToTextRequest\x12\x14\n" +
 	"\x05model\x18\x01 \x01(\tR\x05model\x12 \n" +
 	"\vtemperature\x18\x02 \x01(\x02R\vtemperature\x12\x16\n" +
@@ -322,22 +322,22 @@ const file_proto_llm_service_proto_rawDesc = "" +
 	"\n" +
 	"LlmService\x126\n" +
 	"\x12GenerateTextToText\x12\x12.TextToTextRequest\x1a\f.LLMResponse\x128\n" +
-	"\x13GenerateTextToImage\x12\x13.TextToImageRequest\x1a\f.LLMResponseB)Z'rag_imtotext_texttoim/proto;llm_serviceb\x06proto3"
+	"\x13GenerateTextToImage\x12\x13.TextToImageRequest\x1a\f.LLMResponseB)Z'rag_imagetotext_texttoimage/proto;protob\x06proto3"
 
 var (
-	file_proto_llm_service_proto_rawDescOnce sync.Once
-	file_proto_llm_service_proto_rawDescData []byte
+	file_llm_service_proto_rawDescOnce sync.Once
+	file_llm_service_proto_rawDescData []byte
 )
 
-func file_proto_llm_service_proto_rawDescGZIP() []byte {
-	file_proto_llm_service_proto_rawDescOnce.Do(func() {
-		file_proto_llm_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_llm_service_proto_rawDesc), len(file_proto_llm_service_proto_rawDesc)))
+func file_llm_service_proto_rawDescGZIP() []byte {
+	file_llm_service_proto_rawDescOnce.Do(func() {
+		file_llm_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_llm_service_proto_rawDesc), len(file_llm_service_proto_rawDesc)))
 	})
-	return file_proto_llm_service_proto_rawDescData
+	return file_llm_service_proto_rawDescData
 }
 
-var file_proto_llm_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
-var file_proto_llm_service_proto_goTypes = []any{
+var file_llm_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_llm_service_proto_goTypes = []any{
 	(*TextToTextRequest)(nil),  // 0: TextToTextRequest
 	(*TextToImageRequest)(nil), // 1: TextToImageRequest
 	(*ChatHistory)(nil),        // 2: ChatHistory
@@ -346,7 +346,7 @@ var file_proto_llm_service_proto_goTypes = []any{
 	nil,                        // 5: TextToImageRequest.StructureOutputEntry
 	nil,                        // 6: LLMResponse.JsonEntry
 }
-var file_proto_llm_service_proto_depIdxs = []int32{
+var file_llm_service_proto_depIdxs = []int32{
 	2, // 0: TextToTextRequest.history:type_name -> ChatHistory
 	4, // 1: TextToTextRequest.structure_output:type_name -> TextToTextRequest.StructureOutputEntry
 	2, // 2: TextToImageRequest.history:type_name -> ChatHistory
@@ -363,26 +363,26 @@ var file_proto_llm_service_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_proto_llm_service_proto_init() }
-func file_proto_llm_service_proto_init() {
-	if File_proto_llm_service_proto != nil {
+func init() { file_llm_service_proto_init() }
+func file_llm_service_proto_init() {
+	if File_llm_service_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_llm_service_proto_rawDesc), len(file_proto_llm_service_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_llm_service_proto_rawDesc), len(file_llm_service_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_llm_service_proto_goTypes,
-		DependencyIndexes: file_proto_llm_service_proto_depIdxs,
-		MessageInfos:      file_proto_llm_service_proto_msgTypes,
+		GoTypes:           file_llm_service_proto_goTypes,
+		DependencyIndexes: file_llm_service_proto_depIdxs,
+		MessageInfos:      file_llm_service_proto_msgTypes,
 	}.Build()
-	File_proto_llm_service_proto = out.File
-	file_proto_llm_service_proto_goTypes = nil
-	file_proto_llm_service_proto_depIdxs = nil
+	File_llm_service_proto = out.File
+	file_llm_service_proto_goTypes = nil
+	file_llm_service_proto_depIdxs = nil
 }
