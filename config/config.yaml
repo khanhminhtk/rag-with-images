@@ -1,7 +1,8 @@
 qdrant:
     bootstrap: "localhost"
-    port: 6333
+    port: 6334
     use_gRPC: false
+    log_path: "/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/qdrant.log"
 llm:
     model: "models/gemini-3-flash-preview"
     temp: 0.7
