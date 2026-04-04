@@ -3,7 +3,7 @@ package grpc
 import (
 	"context"
 
-	"rag_imagetotext_texttoimage/internal/application/dto"
+	"rag_imagetotext_texttoimage/internal/application/dtos"
 	"rag_imagetotext_texttoimage/internal/application/ports"
 	"rag_imagetotext_texttoimage/internal/util"
 	pb "rag_imagetotext_texttoimage/proto"
@@ -57,7 +57,7 @@ func parseLLMResponse(response *ports.LLMResponse) *pb.LLMResponse {
 }
 
 func (S *LLMService) GenerateTextToText(ctx context.Context, req *pb.TextToTextRequest) (*pb.LLMResponse, error) {
-	request := &dto.LlmRequest{
+	request := &dtos.LlmRequest{
 		Temp:            req.Temperature,
 		Prompt:          req.Prompt,
 		Model:           req.Model,
@@ -82,7 +82,7 @@ func (S *LLMService) GenerateTextToText(ctx context.Context, req *pb.TextToTextR
 }
 
 func (S *LLMService) GenerateTextToImage(ctx context.Context, req *pb.TextToImageRequest) (*pb.LLMResponse, error) {
-	request := &dto.LlmRequest{
+	request := &dtos.LlmRequest{
 		Temp:            req.Temperature,
 		Prompt:          req.Prompt,
 		Model:           req.Model,

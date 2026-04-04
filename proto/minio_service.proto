@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option go_package = "rag_imagetotext_texttoimage/proto;proto";
+
+service MinioService {
+  rpc DeleteFile (DeleteFileRequest) returns (DeleteFileResponse);
+  rpc PresignUploadURL (PresignUploadURLRequest) returns (PresignUploadURLResponse);
+};
+
+message DeleteFileRequest {
+  string bucket_name = 1;
+  string object_key = 2;
+}
+
+message DeleteFileResponse {
+  bool success = 1;
+}
+
+message PresignUploadURLRequest {
+  string bucket_name = 1;
+  string object_key = 2;
+  int64 expires_in_seconds = 3;
+}
+
+message PresignUploadURLResponse {
+  string url = 1;
+  bool success = 2;
+}
