@@ -7,3 +7,17 @@ llm:
     model: "models/gemini-3-flash-preview"
     temp: 0.7
     apikey: "${gemini_api_key}"
+minio:
+    endpoint: "localhost:9000"
+    access_key: "admin"
+    secret_key: "supersecretpassword"
+    use_ssl: false
+    default_bucket: "${MINIO_DEFAULT_BUCKET}"
+    buckets:
+        default: "${MINIO_DEFAULT_BUCKET}"
+        upload: "${MINIO_BUCKET_UPLOAD}"
+        presign: "${MINIO_BUCKET_PRESIGN}"
+        delete: "${MINIO_BUCKET_DELETE}"
+        archive: "${MINIO_BUCKET_ARCHIVE}"
+    region: "${MINIO_REGION}"
+    presign_expiry_seconds: 900
