@@ -9,6 +9,7 @@ class ITextEncoder {
 public:
     virtual ~ITextEncoder() = default;
     virtual EmbeddingResult encode(const std::string& text) = 0;
+    virtual std::vector<EmbeddingResult> encodeBatch(const std::vector<std::string>& texts) = 0;
 };
 
 class IVisionEncoder {
@@ -17,4 +18,6 @@ public:
     // imageData: CHW float32 normalised [0,1]
     virtual EmbeddingResult encode(const std::vector<float>& imageData,
                                    int height, int width) = 0;
+    virtual std::vector<EmbeddingResult> encodeBatch(const std::vector<std::vector<float>>& imagesData,
+                                                     int height, int width) = 0;
 };

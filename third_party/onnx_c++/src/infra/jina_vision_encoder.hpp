@@ -15,8 +15,11 @@ public:
 
     EmbeddingResult encode(const std::vector<float>& imageData,
                            int height, int width) override;
+    std::vector<EmbeddingResult> encodeBatch(const std::vector<std::vector<float>>& imagesData,
+                                             int height, int width) override;
 
     EmbeddingResult encodeFromMat(const cv::Mat& image);
+    std::vector<EmbeddingResult> encodeBatchFromMat(const std::vector<cv::Mat>& images);
 
 private:
     IOnnxSession* session_;  // non-owning

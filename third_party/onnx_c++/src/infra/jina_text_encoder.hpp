@@ -12,6 +12,7 @@ public:
     explicit JinaTextEncoder(IOnnxSession* session, const std::string& vocabPath = "model/tokenizer/vocab.txt");
 
     EmbeddingResult encode(const std::string& text) override;
+    std::vector<EmbeddingResult> encodeBatch(const std::vector<std::string>& texts) override;
     void setMaxSeqLen(int maxLen);
 
 private:
