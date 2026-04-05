@@ -201,3 +201,77 @@ EmbeddingResult JinaTextEncoder::encode(const std::string& text) {
 
     return EmbeddingResult(std::move(embedding), dim).normalized();
 }
+
+std::vector<EmbeddingResult> JinaTextEncoder::encodeBatch(const std::vector<std::string>& texts) {
+    if (texts.empty()) return {};
+
+    const int64_t batchSize = static_cast<int64_t>(texts.size());
+    std::vector<TokenizeResult> allTokens;
+    allTokens.reserve(texts.size());
+    
+    size_t actualSeqLen = 0;
+    for (const auto& text : texts) {
+        auto tokens = tokenize(text);
+        if (tokens.input_ids.size() > actualSeqLen) {
+            actualSeqLen = tokens.input_ids.size();
+        }
+        allTokens.push_back(std::move(tokens));
+    }
+
+    const int64_t seqLen = static_cast<int64_t>(actualSeqLen);
+    const std::vector<int64_t> inputShape = {batchSize, seqLen};
+
+    std::vector<int64_t> flat_input_ids;
+    std::vector<int64_t> flat_attention_mask;
+    flat_input_ids.reserve(actualSeqLen * texts.size());
+    flat_attention_mask.reserve(actualSeqLen * texts.size());
+
+    for (const auto& tokens : allTokens) {
+        flat_input_ids.insert(flat_input_ids.end(), tokens.input_ids.begin(), tokens.input_ids.begin() + actualSeqLen);
+        flat_attention_mask.insert(flat_attention_mask.end(), tokens.attention_mask.begin(), tokens.attention_mask.begin() + actualSeqLen);
+    }
+
+    void* idsTensor  = session_->createInt64Tensor(inputShape, flat_input_ids.data());
+    void* maskTensor = session_->createInt64Tensor(inputShape, flat_attention_mask.data());
+
+    std::vector<void*> inputTensors;
+    for (const auto& name : inputNamesStorage_) {
+        if (name == "input_ids") inputTensors.push_back(idsTensor);
+        else if (name == "attention_mask") inputTensors.push_back(maskTensor);
+        else inputTensors.push_back(idsTensor);
+    }
+    
+    if (inputTensors.size() != inputNames_.size()) {
+         session_->releaseTensor(idsTensor);
+         session_->releaseTensor(maskTensor);
+         throw std::runtime_error("Tensors mapping mismatch");
+    }
+
+    std::vector<void*> outputTensors;
+    session_->run(inputNames_, inputTensors, outputNames_, outputTensors);
+
+    if (outputTensors.empty()) {
+        session_->releaseTensor(idsTensor);
+        session_->releaseTensor(maskTensor);
+        throw std::runtime_error("No output from text model");
+    }
+
+    void* outTensor = outputTensors[0];
+    float* outData  = session_->getFloatTensorData(outTensor);
+    const auto outShape   = session_->getTensorShape(outTensor);
+
+    const int actualDim = (outShape.size() >= 2) ? static_cast<int>(outShape[1]) : embeddingDim_;
+
+    std::vector<EmbeddingResult> results;
+    results.reserve(batchSize);
+    for (int64_t b = 0; b < batchSize; ++b) {
+        std::vector<float> embedding(outData + b * actualDim, outData + (b + 1) * actualDim);
+        results.push_back(EmbeddingResult(std::move(embedding), actualDim).normalized());
+    }
+
+    session_->releaseTensor(idsTensor);
+    session_->releaseTensor(maskTensor);
+    for (auto* t : outputTensors) session_->releaseTensor(t);
+
+    return results;
+}
