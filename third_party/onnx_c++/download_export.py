@@ -1,8 +1,18 @@
+import importlib.util
+from pathlib import Path
+
 import torch
 import transformers
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 torch.set_default_device("cpu")
+
+if importlib.util.find_spec("onnx") is None:
+    raise RuntimeError(
+        "Missing dependency: `onnx`.\n"
+        "Install it in your current environment, e.g.\n"
+        "  python -m pip install onnx"
+    )
 
 if int(transformers.__version__.split(".", 1)[0]) >= 5:
     raise RuntimeError(
@@ -11,6 +21,10 @@ if int(transformers.__version__.split(".", 1)[0]) >= 5:
     )
 
 model_name = 'jinaai/jina-clip-v1'
+tokenizer = AutoTokenizer.from_pretrained(
+    model_name,
+    trust_remote_code=True,
+)
 model = AutoModel.from_pretrained(
     model_name,
     trust_remote_code=True,
@@ -22,13 +36,20 @@ model.eval()
 vision_model = model.vision_model
 text_model = model.text_model
 
+project_dir = Path(__file__).resolve().parent
+onnx_output_dir = project_dir / "model" / "onnx"
+onnx_output_dir.mkdir(parents=True, exist_ok=True)
+
+tokenizer_output_dir = project_dir / "model" / "tokenizer"
+tokenizer_output_dir.mkdir(parents=True, exist_ok=True)
+tokenizer.save_pretrained(tokenizer_output_dir)
 
 dummy_image = torch.randn(1, 3, 224, 224, device="cpu")
 
 torch.onnx.export(
     vision_model,
     (dummy_image,),
-    "/home/minhtk/code/rag_imtotext_texttoim/third_party/onnx_c++/model/onnx/jina_vision.onnx",
+    str(onnx_output_dir / "jina_vision.onnx"),
     export_params=True,
     opset_version=14,
     do_constant_folding=True,
@@ -47,7 +68,7 @@ dummy_attention_mask = torch.ones(1, 1024, dtype=torch.long, device="cpu")
 torch.onnx.export(
     text_model,
     (dummy_input_ids, dummy_attention_mask),
-    "/home/minhtk/code/rag_imtotext_texttoim/third_party/onnx_c++/model/onnx/jina_text.onnx",
+    str(onnx_output_dir / "jina_text.onnx"),
     export_params=True,
     opset_version=14,
     do_constant_folding=True,
@@ -60,3 +81,6 @@ torch.onnx.export(
         'text_embeds': {0: 'batch_size'}
     }
 )
+
+print(f"Exported ONNX models to: {onnx_output_dir}")
+print(f"Exported Tokenizer to: {tokenizer_output_dir}")

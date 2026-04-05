@@ -1,56 +1,78 @@
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <string>
 
-#include "utils/configloader.hpp"
+#include <opencv2/opencv.hpp>
+
+#include "bootstrap/container.hpp"
+#include "bootstrap/registry.hpp"
+#include "domain/value_objects/EmbeddingResult.hpp"
+#include "infra/jina_text_encoder.hpp"
+#include "infra/jina_vision_encoder.hpp"
 
 namespace {
 
-void PrintTensorInfo(const std::string& name, const TensorInfo& tensor) {
-    std::cout << name << '\n';
-    std::cout << "  type: " << tensor.type << '\n';
-    std::cout << "  shape: [";
-    for (std::size_t i = 0; i < tensor.shape.size(); ++i) {
-        if (i > 0) {
-            std::cout << ", ";
-        }
-        std::cout << tensor.shape[i];
+void printEmbedding(const std::string& label, const EmbeddingResult& emb, int showN = 5) {
+    std::cout << label << " [dim=" << emb.dimension() << ", norm=" << emb.norm() << "]:\n  [";
+    for (int i = 0; i < std::min(showN, emb.dimension()); ++i) {
+        if (i > 0) std::cout << ", ";
+        std::cout << emb.data()[static_cast<size_t>(i)];
     }
-    std::cout << "]\n";
+    std::cout << ", ...]\n";
+}
+
+std::string resolveConfigPath(int argc, char* argv[]) {
+    if (argc > 1) return argv[1];
+    for (const auto& candidate : {"config/config.yaml", "../config/config.yaml"}) {
+        if (std::filesystem::exists(candidate)) return candidate;
+    }
+    return "config/config.yaml";
 }
 
 }  // namespace
 
 int main(int argc, char* argv[]) {
-    const std::string config_path =
-        argc > 1 ? argv[1] : "/home/minhtk/code/rag_imtotext_texttoim/third_party/onnx_c++/config/config.yaml";
-
     try {
-        const ConfigLoader loader(config_path);
-        const TextEmbedConfig& config = loader.GetTextEmbedConfig();
+        const std::string configPath = resolveConfigPath(argc, argv);
+        std::cout << "[1/4] Config: " << configPath << std::endl;
 
-        std::cout << "Loaded config: " << config_path << '\n';
-        std::cout << "model_path: " << config.model_path << '\n';
-        PrintTensorInfo("input_ids", config.inputs.input_ids);
-        PrintTensorInfo("attention_mask", config.inputs.attention_mask);
-        PrintTensorInfo("outputs", config.outputs);
-        std::cout << "session_config\n";
-        std::cout << "  intra_op_num_threads: " << config.session_config.intra_op_num_threads << '\n';
-        std::cout << "  inter_op_num_threads: " << config.session_config.inter_op_num_threads << '\n';
-        std::cout << "  execution_mode: " << config.session_config.execution_mode << '\n';
-        std::cout << "  graph_optimization_level: " << config.session_config.graph_optimization_level << '\n';
-        std::cout << "  log_severity_level: " << config.session_config.log_severity_level << '\n';
-        std::cout << "  provider.type: " << config.session_config.provider.type << '\n';
-        std::cout << "  provider.device: " << config.session_config.provider.device << '\n';
-        std::cout << "  memory.memory_pattern: " << std::boolalpha
-                  << config.session_config.memory.memory_pattern << '\n';
-        std::cout << "  memory.cpu_mem_arena: " << std::boolalpha
-                  << config.session_config.memory.cpu_mem_arena << '\n';
-        std::cout << "  memory.initial_chunk_size_bytes: "
-                  << config.session_config.memory.initial_chunk_size_bytes << '\n';
+        std::cout << "[2/4] Initializing services...\n";
+        bootstrap::DIContainer container;
+        bootstrap::ServiceRegistry::registerServices(container, configPath);
+
+        std::cout << "\n[3/4] Text Embedding\n";
+        auto textEncoder = container.resolve<JinaTextEncoder>();
+        std::string demoText = "a cat sitting on a couch";
+        auto textEmb = textEncoder->encode(demoText);
+        printEmbedding("Text", textEmb);
+
+        std::cout << "\n[4/4] Vision Embedding\n";
+        auto visionEncoder = container.resolve<JinaVisionEncoder>();
+
+        if (argc > 2) {
+            cv::Mat image = cv::imread(argv[2]);
+            if (image.empty()) {
+                std::cerr << "Failed to load image: " << argv[2] << std::endl;
+                return 1;
+            }
+            auto visEmb = visionEncoder->encodeFromMat(image);
+            printEmbedding("Vision", visEmb);
+            std::cout << "\nCosine similarity = "
+                      << EmbeddingResult::cosineSimilarity(textEmb, visEmb) << "\n";
+        } else {
+            cv::Mat synth(224, 224, CV_8UC3);
+            cv::randu(synth, cv::Scalar(0, 0, 0), cv::Scalar(255, 255, 255));
+            auto visEmb = visionEncoder->encodeFromMat(synth);
+            printEmbedding("Vision (synthetic)", visEmb);
+            std::cout << "\nCosine similarity = "
+                      << EmbeddingResult::cosineSimilarity(textEmb, visEmb) << "\n";
+        }
+
+        std::cout << "\n=== Done ===\n";
         return 0;
-    } catch (const std::exception& ex) {
-        std::cerr << "Failed to load config: " << ex.what() << '\n';
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
 }
