@@ -57,16 +57,27 @@ set(UTILS_HEADERS
     utils/spdlogger.hpp
 )
 
+# ── API layer (CGO Bridge) ──────────────────────
+set(API_SOURCES
+    api/bridge.cpp
+)
+
+set(API_HEADERS
+    api/bridge.h
+)
+
 # ── Static library ──────────────────────────────
 add_library(edge_sentinel_lib STATIC
     ${INFRA_SOURCES}
     ${BOOTSTRAP_SOURCES}
     ${UTILS_SOURCES}
+    ${API_SOURCES}
     ${DOMAIN_HEADERS}
     ${APPLICATION_HEADERS}
     ${INFRA_HEADERS}
     ${BOOTSTRAP_HEADERS}
     ${UTILS_HEADERS}
+    ${API_HEADERS}
 )
 
 target_include_directories(edge_sentinel_lib
