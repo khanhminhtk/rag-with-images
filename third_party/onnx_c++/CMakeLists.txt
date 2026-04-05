@@ -4,7 +4,7 @@ project(
         onnx,
         VERSION 1.0.0
         DESCRIPTION "Inference model DL with onnx cpp"
-        LANGUAGES CXX
+        LANGUAGES C CXX
 )
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
