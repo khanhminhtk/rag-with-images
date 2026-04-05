@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+option go_package = "rag_imagetotext_texttoimage/proto;proto";
+
+service DeepLearningService {
+  rpc EmbedText(EmbedTextRequest) returns (EmbedTextResponse);
+  rpc EmbedImage(EmbedImageRequest) returns (EmbedImageResponse);
+}
+
+message EmbedTextRequest {
+  string text = 1;
+}
+
+message EmbedTextResponse {
+  repeated float embedding = 1; // Assuming 768 dimensions
+  int32 dimension = 2; // Dimension of the embedding (e.g., 768)
+  bool status = 3; // Status of the embedding operation
+}
+
+message EmbedImageRequest {
+  repeated bytes images = 1; // List of image data in bytes
+  int32 width = 2; // Image width (e.g., 384)
+  int32 height = 3; // Image height (e.g., 384)
+  int32 channels = 4; // Number of channels (e.g., 3 for RGB)
+}
+
+message EmbedImageResponse {
+  repeated float embedding = 1; // Assuming 768 dimensions
+  int32 dimension = 2; // Dimension of the embedding (e.g., 768)
+  bool status = 3; // Status of the embedding operation
+}
