@@ -8,15 +8,15 @@ import (
 )
 
 type Config struct {
-	Endpoint        string 
-	AccessKey       string 
-	SecretKey       string 
-	UseSSL          bool
-	Region 			string
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	UseSSL    bool
+	Region    string
 }
 
 type MinioCleant struct {
-	Client *minio.Client
+	Client    *minio.Client
 	appLogger util.Logger
 }
 
@@ -30,11 +30,13 @@ func NewMinioCleant(appLogger util.Logger, config Config) (*MinioCleant, error) 
 		},
 	)
 	if err != nil {
-		appLogger.Error("internal.infra.minio.client.NewMinioCleant: Don't create minio client due to: ", err)
+		if appLogger != nil {
+			appLogger.Error("new minio client failed", err, "endpoint", config.Endpoint)
+		}
 		return nil, err
 	}
 	return &MinioCleant{
-		Client: client,
+		Client:    client,
 		appLogger: appLogger,
 	}, nil
 }

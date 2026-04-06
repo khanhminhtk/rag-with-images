@@ -61,10 +61,21 @@ func (M *MinIOStorage) PutObject(ctx context.Context, input ports.PutObjectInput
 		},
 	)
 	if err != nil {
-		M.appLogger.Error("internal.infra.minio.miniostorage.PutObject: Don't put object to minio due to: ", err)
+		M.appLogger.Error(
+			"put object failed",
+			err,
+			"bucket", input.Bucket,
+			"object_key", input.ObjectKey,
+		)
 		return nil, err
 	}
-	M.appLogger.Info("internal.infra.minio.miniostorage.PutObject: Put object to minio successfully, upload info: ", uploadInfo)
+	M.appLogger.Info(
+		"put object success",
+		"bucket", input.Bucket,
+		"object_key", input.ObjectKey,
+		"size", uploadInfo.Size,
+		"etag", uploadInfo.ETag,
+	)
 	return &ports.ObjectInfo{
 		Bucket:       input.Bucket,
 		ObjectKey:    input.ObjectKey,
@@ -79,15 +90,21 @@ func (M *MinIOStorage) PutObject(ctx context.Context, input ports.PutObjectInput
 func (M *MinIOStorage) GetObject(ctx context.Context, bucket string, objectKey string) (io.ReadCloser, *ports.ObjectInfo, error) {
 	object, err := M.MinioClient.Client.GetObject(ctx, bucket, objectKey, miniosdk.GetObjectOptions{})
 	if err != nil {
-		M.appLogger.Error("internal.infra.minio.miniostorage.GetObject: Don't get object from minio due to: ", err)
+		M.appLogger.Error("get object failed", err, "bucket", bucket, "object_key", objectKey)
 		return nil, nil, err
 	}
 	objectInfo, err := object.Stat()
 	if err != nil {
-		M.appLogger.Error("internal.infra.minio.miniostorage.GetObject: Don't stat object from minio due to: ", err)
+		M.appLogger.Error("get object stat failed", err, "bucket", bucket, "object_key", objectKey)
 		return nil, nil, err
 	}
-	M.appLogger.Info("internal.infra.minio.miniostorage.GetObject: Get object from minio successfully, object info: ", objectInfo)
+	M.appLogger.Info(
+		"get object success",
+		"bucket", bucket,
+		"object_key", objectKey,
+		"size", objectInfo.Size,
+		"etag", objectInfo.ETag,
+	)
 	return object, &ports.ObjectInfo{
 		Bucket:       bucket,
 		ObjectKey:    objectKey,
@@ -102,10 +119,16 @@ func (M *MinIOStorage) GetObject(ctx context.Context, bucket string, objectKey s
 func (M *MinIOStorage) StatObject(ctx context.Context, bucket string, objectKey string) (*ports.ObjectInfo, error) {
 	objectInfo, err := M.MinioClient.Client.StatObject(ctx, bucket, objectKey, miniosdk.StatObjectOptions{})
 	if err != nil {
-		M.appLogger.Error("internal.infra.minio.miniostorage.StatObject: Don't stat object from minio due to: ", err)
+		M.appLogger.Error("stat object failed", err, "bucket", bucket, "object_key", objectKey)
 		return nil, err
 	}
-	M.appLogger.Info("internal.infra.minio.miniostorage.StatObject: Stat object from minio successfully, object info: ", objectInfo)
+	M.appLogger.Info(
+		"stat object success",
+		"bucket", bucket,
+		"object_key", objectKey,
+		"size", objectInfo.Size,
+		"etag", objectInfo.ETag,
+	)
 	return &ports.ObjectInfo{
 		Bucket:       bucket,
 		ObjectKey:    objectKey,
@@ -120,10 +143,10 @@ func (M *MinIOStorage) StatObject(ctx context.Context, bucket string, objectKey 
 func (M *MinIOStorage) DeleteObject(ctx context.Context, bucket string, objectKey string) error {
 	err := M.MinioClient.Client.RemoveObject(ctx, bucket, objectKey, miniosdk.RemoveObjectOptions{})
 	if err != nil {
-		M.appLogger.Error("internal.infra.minio.miniostorage.DeleteObject: Don't delete object from minio due to: ", err)
+		M.appLogger.Error("delete object failed", err, "bucket", bucket, "object_key", objectKey)
 		return err
 	}
-	M.appLogger.Info("internal.infra.minio.miniostorage.DeleteObject: Delete object from minio successfully, bucket: ", bucket, "object key: ", objectKey)
+	M.appLogger.Info("delete object success", "bucket", bucket, "object_key", objectKey)
 	return nil
 }
 
@@ -131,9 +154,9 @@ func (M *MinIOStorage) PresignGetObject(ctx context.Context, bucket string, obje
 	reqParams := make(url.Values)
 	presignedURL, err := M.MinioClient.Client.PresignedGetObject(ctx, bucket, objectKey, expiry, reqParams)
 	if err != nil {
-		M.appLogger.Error("internal.infra.minio.miniostorage.PresignGetObject: Don't presign get object URL from minio due to: ", err)
+		M.appLogger.Error("presign get object failed", err, "bucket", bucket, "object_key", objectKey)
 		return "", err
 	}
-	M.appLogger.Info("internal.infra.minio.miniostorage.PresignGetObject: Presign get object URL from minio successfully, bucket: ", bucket, "object key: ", objectKey, "presigned URL: ", presignedURL)
+	M.appLogger.Info("presign get object success", "bucket", bucket, "object_key", objectKey, "expiry_seconds", int(expiry.Seconds()))
 	return presignedURL.String(), nil
 }

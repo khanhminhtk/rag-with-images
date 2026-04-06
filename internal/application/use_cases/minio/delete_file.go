@@ -27,27 +27,27 @@ func (d *DeleteFileInputUseCase) NewDeleteFileInputUseCase(bucket string, appLog
 func (d *DeleteFileInputUseCase) Execute(ctx context.Context, req *dtos.DeleteFileMinioRequest) error {
 	if req == nil {
 		err := fmt.Errorf("request is nil")
-		d.appLogger.Error("internal.application.use_cases.minio.delete_file.Execute: Invalid request due to: ", err)
+		d.appLogger.Error("invalid delete file request", err)
 		return err
 	}
 
 	objectKey := strings.TrimSpace(req.ObjectKey)
 	if objectKey == "" {
 		err := fmt.Errorf("object key is empty")
-		d.appLogger.Error("internal.application.use_cases.minio.delete_file.Execute: Invalid object key due to: ", err)
+		d.appLogger.Error("invalid object key", err)
 		return err
 	}
 
 	if _, err := d.MinioStorage.StatObject(ctx, d.Bucket, objectKey); err != nil {
-		d.appLogger.Error("internal.application.use_cases.minio.delete_file.Execute: Don't stat object from minio due to: ", err)
+		d.appLogger.Error("stat object failed before delete", err, "bucket", d.Bucket, "object_key", objectKey)
 		return err
 	}
 
 	if err := d.MinioStorage.DeleteObject(ctx, d.Bucket, objectKey); err != nil {
-		d.appLogger.Error("internal.application.use_cases.minio.delete_file.Execute: Don't delete object from minio due to: ", err)
+		d.appLogger.Error("delete object failed", err, "bucket", d.Bucket, "object_key", objectKey)
 		return err
 	}
 
-	d.appLogger.Info("internal.application.use_cases.minio.delete_file.Execute: Delete object from minio successfully, bucket: ", d.Bucket, " objectKey: ", objectKey)
+	d.appLogger.Info("delete object succeeded", "bucket", d.Bucket, "object_key", objectKey)
 	return nil
 }

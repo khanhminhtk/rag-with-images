@@ -31,27 +31,32 @@ func (p *PresignGetObjectUseCase) Execute(ctx context.Context, req *dtos.Presign
 	objectKey := strings.TrimSpace(req.ObjectKey)
 	if objectKey == "" {
 		err := fmt.Errorf("object key is empty")
-		p.appLogger.Error("internal.application.use_cases.minio.presign.Execute: Invalid object key due to: ", err)
+		p.appLogger.Error("presign request invalid object key", err, "bucket", p.Bucket)
 		return "", err
 	}
 
 	if p.PresignExpiry <= 0 {
 		err := fmt.Errorf("presign expiry must be greater than zero")
-		p.appLogger.Error("internal.application.use_cases.minio.presign.Execute: Invalid presign expiry due to: ", err)
+		p.appLogger.Error("presign request invalid expiry", err, "bucket", p.Bucket)
 		return "", err
 	}
 
 	if _, err := p.MinioStorage.StatObject(ctx, p.Bucket, objectKey); err != nil {
-		p.appLogger.Error("internal.application.use_cases.minio.presign.Execute: Don't stat object from minio due to: ", err)
+		p.appLogger.Error("presign stat object failed", err, "bucket", p.Bucket, "object_key", objectKey)
 		return "", err
 	}
 
 	url, err := p.MinioStorage.PresignGetObject(ctx, p.Bucket, objectKey, p.PresignExpiry)
 	if err != nil {
-		p.appLogger.Error("internal.application.use_cases.minio.presign.Execute: Don't create presign get object URL due to: ", err)
+		p.appLogger.Error("presign create url failed", err, "bucket", p.Bucket, "object_key", objectKey)
 		return "", err
 	}
 
-	p.appLogger.Info("internal.application.use_cases.minio.presign.Execute: Create presign get object URL successfully, bucket: ", p.Bucket, " objectKey: ", objectKey)
+	p.appLogger.Info(
+		"presign get object success",
+		"bucket", p.Bucket,
+		"object_key", objectKey,
+		"expiry_seconds", int(p.PresignExpiry.Seconds()),
+	)
 	return url, nil
 }

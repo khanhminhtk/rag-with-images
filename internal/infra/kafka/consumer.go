@@ -21,19 +21,21 @@ type ConsumerConfig struct {
 }
 
 type Consumer struct {
-	client *KafkaClient
-	config ConsumerConfig
-	appLogger  util.Logger
-	mu      sync.Mutex
-	readers []*segmentio.Reader
+	client    *KafkaClient
+	config    ConsumerConfig
+	appLogger util.Logger
+	mu        sync.Mutex
+	readers   []*segmentio.Reader
 }
 
 var _ ports.KafkaConsumer = (*Consumer)(nil)
 
 func NewKafkaConsumer(client *KafkaClient, config ConsumerConfig, appLogger util.Logger) (*Consumer, error) {
 	if client == nil {
-		err := errors.New("Kafka client is nil")
-		appLogger.Error("internal.infra.kafka.consumer.NewKafkaConsumer: ", err)
+		err := errors.New("kafka client is nil")
+		if appLogger != nil {
+			appLogger.Error("new consumer failed", err)
+		}
 		return nil, err
 	}
 	if config.MinBytes <= 0 {
@@ -42,30 +44,50 @@ func NewKafkaConsumer(client *KafkaClient, config ConsumerConfig, appLogger util
 	if config.MaxBytes <= 0 {
 		config.MaxBytes = 10e6
 	}
-	appLogger.Info("internal.infra.kafka.consumer.NewKafkaConsumer: Create Kafka consumer successfully with config: ", config)
+	if appLogger != nil {
+		appLogger.Info(
+			"kafka consumer initialized",
+			"min_bytes", config.MinBytes,
+			"max_bytes", config.MaxBytes,
+			"commit_interval", config.CommitInterval.String(),
+			"start_offset", config.StartOffset,
+		)
+	}
 	return &Consumer{
-		client: client,
-		config: config,
+		client:    client,
+		config:    config,
 		appLogger: appLogger,
 	}, nil
 }
 
 func (c *Consumer) Consume(ctx context.Context, topic string, groupID string, handler ports.MessageHandler) error {
 	if c == nil || c.client == nil {
-		c.appLogger.Error("internal.infra.kafka.consumer.Consume: ", errors.New("Kafka client is nil"))
-		return errors.New("Kafka client is nil")
+		err := errors.New("kafka client is nil")
+		if c != nil && c.appLogger != nil {
+			c.appLogger.Error("consume failed", err, "topic", topic, "group_id", groupID)
+		}
+		return err
 	}
 	if topic == "" {
-		c.appLogger.Error("internal.infra.kafka.consumer.Consume: ", errors.New("Topic is required"))
-		return errors.New("topic is required")
+		err := errors.New("topic is required")
+		if c.appLogger != nil {
+			c.appLogger.Error("consume failed", err, "group_id", groupID)
+		}
+		return err
 	}
 	if groupID == "" {
-		c.appLogger.Error("internal.infra.kafka.consumer.Consume: ", errors.New("GroupID is required"))
-		return errors.New("groupID is required")
+		err := errors.New("group_id is required")
+		if c.appLogger != nil {
+			c.appLogger.Error("consume failed", err, "topic", topic)
+		}
+		return err
 	}
 	if handler == nil {
-		c.appLogger.Error("internal.infra.kafka.consumer.Consume: ", errors.New("Handler is required"))
-		return errors.New("handler is required")
+		err := errors.New("handler is required")
+		if c.appLogger != nil {
+			c.appLogger.Error("consume failed", err, "topic", topic, "group_id", groupID)
+		}
+		return err
 	}
 
 	readerConfig := segmentio.ReaderConfig{
@@ -94,8 +116,11 @@ func (c *Consumer) Consume(ctx context.Context, topic string, groupID string, ha
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return nil
 			}
-			c.appLogger.Error("internal.infra.kafka.consumer.Consume: ", fmt.Errorf("fetch message: %w", err))
-			return fmt.Errorf("fetch message: %w", err)
+			wrappedErr := fmt.Errorf("fetch message: %w", err)
+			if c.appLogger != nil {
+				c.appLogger.Error("consume fetch failed", wrappedErr, "topic", topic, "group_id", groupID)
+			}
+			return wrappedErr
 		}
 
 		headers := make(map[string]string, len(msg.Headers))
@@ -115,13 +140,19 @@ func (c *Consumer) Consume(ctx context.Context, topic string, groupID string, ha
 		}
 
 		if err := handler(ctx, consumeMessage); err != nil {
-			c.appLogger.Error("internal.infra.kafka.consumer.Consume: ", fmt.Errorf("consume handler failed: %w", err))
-			return fmt.Errorf("consume handler failed: %w", err)
+			wrappedErr := fmt.Errorf("consume handler failed: %w", err)
+			if c.appLogger != nil {
+				c.appLogger.Error("consume handler failed", wrappedErr, "topic", topic, "group_id", groupID, "offset", msg.Offset)
+			}
+			return wrappedErr
 		}
 
 		if err := reader.CommitMessages(ctx, msg); err != nil {
-			c.appLogger.Error("internal.infra.kafka.consumer.Consume: ", fmt.Errorf("commit message: %w", err))
-			return fmt.Errorf("commit message: %w", err)
+			wrappedErr := fmt.Errorf("commit message: %w", err)
+			if c.appLogger != nil {
+				c.appLogger.Error("consume commit failed", wrappedErr, "topic", topic, "group_id", groupID, "offset", msg.Offset)
+			}
+			return wrappedErr
 		}
 	}
 }

@@ -29,12 +29,12 @@ func (m *MinioService) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest
 		ObjectKey: req.ObjectKey,
 	})
 	if err != nil {
-		m.appLogger.Error("internal.adapter.grpc.minio_service.DeleteFile: Error deleting file: %v", err)
+		m.appLogger.Error("delete file failed", err, "object_key", req.ObjectKey)
 		return &pb.DeleteFileResponse{
 			Success: false,
 		}, err
 	}
-	m.appLogger.Info("internal.adapter.grpc.minio_service.DeleteFile: File deleted successfully: %s", req.ObjectKey)
+	m.appLogger.Info("delete file succeeded", "object_key", req.ObjectKey)
 	return &pb.DeleteFileResponse{
 		Success: true,
 	}, nil
@@ -45,13 +45,13 @@ func (m *MinioService) PresignUploadURL(ctx context.Context, req *pb.PresignUplo
 		ObjectKey: req.ObjectKey,
 	})
 	if err != nil {
-		m.appLogger.Error("internal.adapter.grpc.minio_service.PresignUploadURL: Error generating presigned URL: %v", err)
+		m.appLogger.Error("presign upload url failed", err, "object_key", req.ObjectKey)
 		return &pb.PresignUploadURLResponse{
 			Success: false,
 			Url:     "",
 		}, err
 	}
-	m.appLogger.Info("internal.adapter.grpc.minio_service.PresignUploadURL: Presigned URL generated successfully: %s", url)
+	m.appLogger.Info("presign upload url succeeded", "object_key", req.ObjectKey)
 	return &pb.PresignUploadURLResponse{
 		Success: true,
 		Url:     url,

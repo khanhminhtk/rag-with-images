@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"os"
@@ -23,38 +22,37 @@ import (
 func main() {
 	appLogger, err := util.NewFileLogger("logs/llm_service.log", slog.LevelDebug)
 	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
+		util.Fatalf("failed to initialize logger: %v", err)
 	}
 	defer appLogger.Close()
 
-	appLogger.Info("Starting LLM gRPC Service...")
+	appLogger.Info("llm service startup")
 
 	envPath := "config/.env"
 	yamlPath := "config/config.yaml"
 	configLoader := util.NewConfigLoader(envPath, yamlPath)
 	cfg, err := configLoader.Load()
 	if err != nil {
-		appLogger.Error("Failed to load configuration", err)
-		log.Fatalf("Failed to load configuration: %v", err)
+		appLogger.Error("load configuration failed", err)
+		util.Fatalf("failed to load configuration: %v", err)
 	}
-	appLogger.Info("Configuration loaded successfully")
+	appLogger.Info("load configuration success")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	geminiClient, err := llm.NewGemini(cfg.LLM, ctx, appLogger)
+	geminiClient, err := llm.NewGemini(cfg.LLMService, ctx, appLogger)
 	if err != nil {
-		appLogger.Error("Failed to initialize Gemini Client", err)
-		log.Fatalf("Failed to initialize Gemini Client: %v", err)
+		appLogger.Error("initialize gemini client failed", err)
+		util.Fatalf("failed to initialize gemini client: %v", err)
 	}
 
 	llmServiceServer := grpcAdapter.NewLLMService(appLogger, geminiClient)
 
-	port := "50051"
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.LLMService.Port))
 	if err != nil {
-		appLogger.Error("Failed to listen on TCP port", err)
-		log.Fatalf("Failed to listen: %v", err)
+		appLogger.Error("listen tcp failed", err, "port", cfg.LLMService.Port)
+		util.Fatalf("failed to listen: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
@@ -63,10 +61,10 @@ func main() {
 	reflection.Register(grpcServer)
 
 	go func() {
-		appLogger.Info("gRPC server listening", "port", port)
+		appLogger.Info("gRPC server listening", "port", cfg.LLMService.Port)
 		if err := grpcServer.Serve(lis); err != nil {
-			appLogger.Error("Failed to serve gRPC server", err)
-			log.Fatalf("Failed to serve: %v", err)
+			appLogger.Error("grpc serve failed", err)
+			util.Fatalf("failed to serve: %v", err)
 		}
 	}()
 
@@ -74,7 +72,7 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	appLogger.Info("Shutting down gRPC server gracefully...")
+	appLogger.Info("grpc graceful shutdown")
 	grpcServer.GracefulStop()
-	appLogger.Info("Server exited.")
+	appLogger.Info("llm service stopped")
 }

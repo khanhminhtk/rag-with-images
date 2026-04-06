@@ -2,7 +2,7 @@ package cgo
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../../third_party/onnx_c++/src/api
-#cgo LDFLAGS: -L${SRCDIR}/../../../third_party/onnx_c++/build-debug/src -ledge_sentinel_lib -lonnxruntime -lopencv_core -lopencv_imgproc -lopencv_imgcodecs -lstdc++ -lm
+#cgo LDFLAGS: -L${SRCDIR}/../../../third_party/onnx_c++/build/src -L${SRCDIR}/../../../third_party/onnx_c++/build/_deps/onnxruntime_prebuilt-src/lib -L${SRCDIR}/../../../third_party/onnx_c++/build/_deps/yaml-cpp-build -L${SRCDIR}/../../../third_party/onnx_c++/build-debug/src -L${SRCDIR}/../../../third_party/onnx_c++/build-debug/_deps/onnxruntime_prebuilt-src/lib -L${SRCDIR}/../../../third_party/onnx_c++/build-debug/_deps/yaml-cpp-build -Wl,-rpath,${SRCDIR}/../../../third_party/onnx_c++/build/_deps/onnxruntime_prebuilt-src/lib -Wl,-rpath,${SRCDIR}/../../../third_party/onnx_c++/build-debug/_deps/onnxruntime_prebuilt-src/lib -ledge_sentinel_lib -lyaml-cpp -lonnxruntime -lopencv_core -lopencv_imgproc -lopencv_imgcodecs -lstdc++ -lm
 #include "bridge.h"
 #include <stdlib.h>
 */
@@ -10,6 +10,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"rag_imagetotext_texttoimage/internal/application/ports"
@@ -21,6 +22,8 @@ var _ ports.Inference = (*JinaAdapter)(nil)
 type JinaAdapter struct {
 	handle C.JinaHandle
 	logger util.Logger
+	mu     sync.RWMutex
+	closed bool
 }
 
 func NewJinaAdapter(configPath string, appLogger util.Logger) (*JinaAdapter, error) {
@@ -29,35 +32,52 @@ func NewJinaAdapter(configPath string, appLogger util.Logger) (*JinaAdapter, err
 
 	h := C.jina_init(cConfigPath)
 	if h == nil {
-		appLogger.Error("[internal.infra.cgo.JinaAdapter.NewJinaAdapter] failed due to: ", errors.New("cgo initialization error"))
+		appLogger.Error("jina adapter initialization failed", errors.New("cgo initialization error"), "config_path", configPath)
 		return nil, errors.New("cgo initialization error")
 	}
 
-	appLogger.Info("[internal.infra.cgo.JinaAdapter.NewJinaAdapter] Jina adapter initialized successfully with config: ", configPath)
+	appLogger.Info("jina adapter initialized successfully", "config_path", configPath)
 
 	return &JinaAdapter{handle: h, logger: appLogger}, nil
 }
 
 func (a *JinaAdapter) Close() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.closed {
+		return
+	}
 	if a.handle != nil {
 		C.jina_release(a.handle)
 		a.handle = nil
 	}
-	a.logger.Info("[internal.infra.cgo.JinaAdapter.Close] Jina adapter resources released")
+	a.closed = true
+	if a.logger != nil {
+		a.logger.Info("jina adapter resources released")
+	}
 }
 
 func (a *JinaAdapter) EmbedText(text string) ([]float32, error) {
+	a.mu.RLock()
+	if a.closed || a.handle == nil {
+		a.mu.RUnlock()
+		return nil, errors.New("jina adapter is closed")
+	}
+	handle := a.handle
+	defer a.mu.RUnlock()
+
 	cText := C.CString(text)
 	defer C.free(unsafe.Pointer(cText))
 
 	embedding := make([]float32, 768)
-	a.logger.Info("[internal.infra.cgo.JinaAdapter.EmbedText] Embedding text: ", text)
-	res := C.jina_embed_text(a.handle, cText, (*C.float)(unsafe.Pointer(&embedding[0])))
+	a.logger.Debug("embedding text started", "text_len", len(text))
+	res := C.jina_embed_text(handle, cText, (*C.float)(unsafe.Pointer(&embedding[0])))
 	if res != 0 {
-		a.logger.Error("[internal.infra.cgo.JinaAdapter.EmbedText] failed due to: ", fmt.Errorf("cgo error in EmbedText: %d", res))
-		return nil, fmt.Errorf("cgo error in EmbedText: %d", res)
+		a.logger.Error("embedding text failed", fmt.Errorf("cgo error in embed_text: %d", res), "text_len", len(text))
+		return nil, fmt.Errorf("cgo error in embed_text: %d", res)
 	}
-	a.logger.Info("[internal.infra.cgo.JinaAdapter.EmbedText] Successfully embedded text: ", text)
+	a.logger.Debug("embedding text success", "text_len", len(text), "dimension", len(embedding))
 
 	return embedding, nil
 }
@@ -67,6 +87,14 @@ func (a *JinaAdapter) EmbedBatchText(texts []string) ([][]float32, error) {
 	if count == 0 {
 		return nil, nil
 	}
+
+	a.mu.RLock()
+	if a.closed || a.handle == nil {
+		a.mu.RUnlock()
+		return nil, errors.New("jina adapter is closed")
+	}
+	handle := a.handle
+	defer a.mu.RUnlock()
 
 	// 1. Prepare C array of strings
 	cArray := C.malloc(C.size_t(uintptr(count) * unsafe.Sizeof(uintptr(0))))
@@ -83,12 +111,12 @@ func (a *JinaAdapter) EmbedBatchText(texts []string) ([][]float32, error) {
 	flatResults := make([]float32, count*768)
 
 	// 3. Call Bridge
-	res := C.jina_embed_batch_text(a.handle, (**C.char)(cArray), C.int(count), (*C.float)(unsafe.Pointer(&flatResults[0])))
+	res := C.jina_embed_batch_text(handle, (**C.char)(cArray), C.int(count), (*C.float)(unsafe.Pointer(&flatResults[0])))
 	if res != 0 {
-		a.logger.Error("[internal.infra.cgo.JinaAdapter.EmbedBatchText] failed due to: ", fmt.Errorf("cgo error in EmbedBatchText: %d", res))
-		return nil, fmt.Errorf("cgo error in EmbedBatchText: %d", res)
+		a.logger.Error("embedding batch text failed", fmt.Errorf("cgo error in embed_batch_text: %d", res), "count", count)
+		return nil, fmt.Errorf("cgo error in embed_batch_text: %d", res)
 	}
-	a.logger.Info("[internal.infra.cgo.JinaAdapter.EmbedBatchText] Successfully embedded batch text")
+	a.logger.Debug("embedding batch text success", "count", count, "dimension", 768)
 
 	// 4. Reshape flat buffer to [][]float32
 	results := make([][]float32, count)
@@ -105,9 +133,17 @@ func (a *JinaAdapter) EmbedImage(pixels []byte, width, height, channels int) ([]
 		return nil, fmt.Errorf("empty image data")
 	}
 
+	a.mu.RLock()
+	if a.closed || a.handle == nil {
+		a.mu.RUnlock()
+		return nil, errors.New("jina adapter is closed")
+	}
+	handle := a.handle
+	defer a.mu.RUnlock()
+
 	embedding := make([]float32, 768)
 	res := C.jina_embed_image(
-		a.handle,
+		handle,
 		(*C.uint8_t)(unsafe.Pointer(&pixels[0])),
 		C.int(width),
 		C.int(height),
@@ -128,6 +164,14 @@ func (a *JinaAdapter) EmbedBatchImage(images [][]byte, width, height, channels i
 		return nil, nil
 	}
 
+	a.mu.RLock()
+	if a.closed || a.handle == nil {
+		a.mu.RUnlock()
+		return nil, errors.New("jina adapter is closed")
+	}
+	handle := a.handle
+	defer a.mu.RUnlock()
+
 	// 1. Prepare flat image buffer
 	frameSize := width * height * channels
 	flatImages := make([]byte, count*frameSize)
@@ -143,7 +187,7 @@ func (a *JinaAdapter) EmbedBatchImage(images [][]byte, width, height, channels i
 
 	// 3. Call Bridge
 	res := C.jina_embed_batch_image(
-		a.handle,
+		handle,
 		(*C.uint8_t)(unsafe.Pointer(&flatImages[0])),
 		C.int(count),
 		C.int(width),

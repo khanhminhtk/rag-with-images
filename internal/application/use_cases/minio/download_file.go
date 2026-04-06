@@ -35,27 +35,22 @@ func NewUploadLocalFileToMinIOUseCase(bucket string, appLogger util.Logger, mini
 func (d *UploadLocalFileToMinIOUseCase) getReaderFile(filePath string) (io.ReadCloser, int64, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.getReaderFile: Don't open file due to: ", err)
+		d.appLogger.Error("open file failed", err, "file_path", filePath)
 		return nil, 0, err
 	}
 
-	d.appLogger.Info("internal.application.use_cases.minio.download_file.getReaderFile: Open file successfully, path: ", filePath)
+	d.appLogger.Info("open file succeeded", "file_path", filePath)
 
 	info, err := file.Stat()
 	if err != nil {
 		file.Close()
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.getReaderFile: Don't stat file due to: ", err)
+		d.appLogger.Error("stat file failed", err, "file_path", filePath)
 		return nil, 0, err
 	}
 
 	size := info.Size()
 
-	d.appLogger.Info(
-		"internal.application.use_cases.minio.download_file.getReaderFile: Get file info successfully, path: ",
-		filePath,
-		" size: ",
-		size,
-	)
+	d.appLogger.Info("stat file succeeded", "file_path", filePath, "size", size)
 
 	return file, size, nil
 }
@@ -97,7 +92,7 @@ func (d *UploadLocalFileToMinIOUseCase) buildTemporaryUploadFile(ctx context.Con
 			return
 		}
 		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			d.appLogger.Error("internal.application.use_cases.minio.download_file.buildTemporaryUploadFile: Don't clean up temporary folder on failure due to: ", removeErr)
+			d.appLogger.Error("cleanup temporary folder on failure failed", removeErr, "temp_dir", tempDir)
 		}
 	}()
 
@@ -146,7 +141,7 @@ func (d *UploadLocalFileToMinIOUseCase) buildTemporaryUploadFile(ctx context.Con
 func (d *UploadLocalFileToMinIOUseCase) Execute(ctx context.Context, req *dtos.UploadFileMinioRequest) (io.ReadCloser, error) {
 	if req == nil {
 		err := fmt.Errorf("request is nil")
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Invalid request due to: ", err)
+		d.appLogger.Error("invalid upload request", err)
 		return nil, err
 	}
 
@@ -154,39 +149,39 @@ func (d *UploadLocalFileToMinIOUseCase) Execute(ctx context.Context, req *dtos.U
 	urlDownload := strings.TrimSpace(req.UrlDownload)
 	if folderDownload == "" {
 		err := fmt.Errorf("folder download is empty")
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Invalid folder download due to: ", err)
+		d.appLogger.Error("invalid folder download", err)
 		return nil, err
 	}
 	if urlDownload == "" {
 		err := fmt.Errorf("url download is empty")
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Invalid url download due to: ", err)
+		d.appLogger.Error("invalid url download", err)
 		return nil, err
 	}
 
 	tempDir, localFilePath, objectKey, err := d.buildTemporaryUploadFile(ctx, folderDownload, urlDownload)
 	if err != nil {
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Don't prepare temporary upload file due to: ", err)
+		d.appLogger.Error("prepare temporary upload file failed", err, "url_download", urlDownload)
 		return nil, err
 	}
 	defer func() {
 		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Don't clean up temporary folder due to: ", removeErr)
+			d.appLogger.Error("cleanup temporary folder failed", removeErr, "temp_dir", tempDir)
 			return
 		}
-		d.appLogger.Info("internal.application.use_cases.minio.download_file.Execute: Cleaned up temporary folder successfully, folder: ", tempDir)
+		d.appLogger.Info("cleanup temporary folder succeeded", "temp_dir", tempDir)
 	}()
 
 	reader, size, err := d.getReaderFile(localFilePath)
 	if err != nil {
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Don't open temporary file for upload due to: ", err)
+		d.appLogger.Error("open temporary file for upload failed", err, "file_path", localFilePath)
 		return nil, err
 	}
 	defer func() {
 		if closeErr := reader.Close(); closeErr != nil {
-			d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Don't close temporary file reader due to: ", closeErr)
+			d.appLogger.Error("close temporary file reader failed", closeErr, "file_path", localFilePath)
 			return
 		}
-		d.appLogger.Info("internal.application.use_cases.minio.download_file.Execute: Closed temporary file reader successfully, path: ", localFilePath)
+		d.appLogger.Info("close temporary file reader succeeded", "file_path", localFilePath)
 	}()
 
 	input := ports.PutObjectInput{
@@ -199,15 +194,15 @@ func (d *UploadLocalFileToMinIOUseCase) Execute(ctx context.Context, req *dtos.U
 
 	err = d.MinioStorage.EnsureBucket(ctx, d.Bucket)
 	if err != nil {
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Don't ensure bucket due to: ", err)
+		d.appLogger.Error("ensure bucket failed", err, "bucket", d.Bucket)
 		return nil, err
 	}
 	_, err = d.MinioStorage.PutObject(ctx, input)
 	if err != nil {
-		d.appLogger.Error("internal.application.use_cases.minio.download_file.Execute: Don't put object to minio due to: ", err)
+		d.appLogger.Error("put object to minio failed", err, "bucket", d.Bucket, "object_key", objectKey)
 		return nil, err
 	}
-	d.appLogger.Info("internal.application.use_cases.minio.download_file.Execute: Put object to minio successfully, bucket: ", d.Bucket, " objectKey: ", objectKey)
+	d.appLogger.Info("put object to minio succeeded", "bucket", d.Bucket, "object_key", objectKey)
 
 	return nil, nil
 }

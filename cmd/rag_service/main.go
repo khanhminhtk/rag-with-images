@@ -2,53 +2,54 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
-	"strconv"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
 	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
-	"rag_imagetotext_texttoimage/internal/application/use_cases"
+	usecases "rag_imagetotext_texttoimage/internal/application/use_cases"
 	infraQdrant "rag_imagetotext_texttoimage/internal/infra/qdrant"
 	"rag_imagetotext_texttoimage/internal/util"
 	pb "rag_imagetotext_texttoimage/proto"
 )
 
 func main() {
-	config_loader := util.NewConfigLoader(
+	configLoader := util.NewConfigLoader(
 		"./config/.env",
 		"./config/config.yaml",
 	)
-	config_loader.Load()
-	config := config_loader.GetConfig()
+	if _, err := configLoader.Load(); err != nil {
+		util.Fatalf("failed to load configuration: %v", err)
+	}
+	cfg := configLoader.GetConfig()
 
-	appLogger, err := util.NewFileLogger(config.Qdrant.LogPath, slog.LevelInfo)
+	appLogger, err := util.NewFileLogger(cfg.RAGService.LogPath, slog.LevelInfo)
 	if err != nil {
-		log.Fatalf("Not able to create logger: %v", err)
+		util.Fatalf("not able to create logger: %v", err)
 	}
 
-	portInt, err := strconv.Atoi(config.Qdrant.Port)
+	portInt, err := strconv.Atoi(cfg.RAGService.QdrantPort)
 	if err != nil {
-		panic("Port không hợp lệ: " + err.Error())
+		util.Fatalf("invalid qdrant port %s: %v", cfg.RAGService.QdrantPort, err)
 	}
 
-	config_qdrant := infraQdrant.Config{
-		Host: config.Qdrant.Bootstrap,
+	configQdrant := infraQdrant.Config{
+		Host: cfg.RAGService.QdrantHost,
 		Port: portInt,
 	}
 
 	client, err := infraQdrant.NewClient(
-		config_qdrant,
+		configQdrant,
 		appLogger,
 	)
 	if err != nil {
-		appLogger.Error("Not able to create qdrant client", err)
+		appLogger.Error("create qdrant client failed", err)
 		return
 	}
 
@@ -63,21 +64,21 @@ func main() {
 		pointStore,
 		collectionStore,
 	)
-	port := "50051"
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.RAGService.Port))
 	if err != nil {
-		appLogger.Error("Failed to listen on TCP port", err)
-		log.Fatalf("Failed to listen: %v", err)
+		appLogger.Error("listen tcp failed", err, "port", cfg.RAGService.Port)
+		util.Fatalf("failed to listen: %v", err)
 	}
 	grpcServer := grpc.NewServer()
 	pb.RegisterRagServiceServer(grpcServer, ragService)
 
 	reflection.Register(grpcServer)
 	go func() {
-		appLogger.Info("gRPC server listening", "port", port)
+		appLogger.Info("grpc server listening", "port", cfg.RAGService.Port)
 		if err := grpcServer.Serve(lis); err != nil {
-			appLogger.Error("Failed to serve gRPC server", err)
-			log.Fatalf("Failed to serve: %v", err)
+			appLogger.Error("grpc serve failed", err)
+			util.Fatalf("failed to serve: %v", err)
 		}
 	}()
 
@@ -85,10 +86,8 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	appLogger.Info("Shutting down gRPC server gracefully...")
+	appLogger.Info("grpc graceful shutdown")
 	grpcServer.GracefulStop()
-	appLogger.Info("Server exited.")
-	
-
+	appLogger.Info("rag service stopped")
 
 }

@@ -2,9 +2,9 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
-	"errors"
 
 	segmentio "github.com/segmentio/kafka-go"
 
@@ -20,16 +20,19 @@ type PublisherConfig struct {
 }
 
 type Publisher struct {
-	writer *segmentio.Writer
-	appLogger  util.Logger
+	writer    *segmentio.Writer
+	appLogger util.Logger
 }
 
 var _ ports.KafkaPublisher = (*Publisher)(nil)
 
 func NewPublisher(client *KafkaClient, config PublisherConfig, appLogger util.Logger) (*Publisher, error) {
 	if client == nil {
-		appLogger.Error("internal.infra.kafka.publisher.NewPublisher: ", errors.New("Kafka client is nil"))
-		return nil, errors.New("Kafka client is nil")
+		err := errors.New("kafka client is nil")
+		if appLogger != nil {
+			appLogger.Error("new publisher failed", err)
+		}
+		return nil, err
 	}
 
 	batchTimeout := config.BatchTimeout
@@ -59,12 +62,18 @@ func NewPublisher(client *KafkaClient, config PublisherConfig, appLogger util.Lo
 
 func (p *Publisher) Publish(ctx context.Context, input ports.PublishMessageInput) error {
 	if p == nil || p.writer == nil {
-		p.appLogger.Error("internal.infra.kafka.publisher.Publish: ", errors.New("kafka publisher is not initialized"))
-		return errors.New("kafka publisher is not initialized")
+		err := errors.New("kafka publisher is not initialized")
+		if p != nil && p.appLogger != nil {
+			p.appLogger.Error("publish failed", err, "topic", input.Topic)
+		}
+		return err
 	}
 	if input.Topic == "" {
-		p.appLogger.Error("internal.infra.kafka.publisher.Publish: ", errors.New("topic is required"))
-		return errors.New("topic is required")
+		err := errors.New("topic is required")
+		if p.appLogger != nil {
+			p.appLogger.Error("publish failed", err)
+		}
+		return err
 	}
 
 	headers := make([]segmentio.Header, 0, len(input.Message.Headers))
@@ -83,8 +92,11 @@ func (p *Publisher) Publish(ctx context.Context, input ports.PublishMessageInput
 	}
 
 	if err := p.writer.WriteMessages(ctx, msg); err != nil {
-		p.appLogger.Error("internal.infra.kafka.publisher.Publish: ", fmt.Errorf("publish message: %w", err))
-		return fmt.Errorf("publish message: %w", err)
+		wrappedErr := fmt.Errorf("publish message: %w", err)
+		if p.appLogger != nil {
+			p.appLogger.Error("publish message failed", wrappedErr, "topic", input.Topic)
+		}
+		return wrappedErr
 	}
 	return nil
 }

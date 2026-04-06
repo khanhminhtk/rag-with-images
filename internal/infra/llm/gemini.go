@@ -3,7 +3,9 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"strings"
 
 	"google.golang.org/genai"
 
@@ -12,26 +14,45 @@ import (
 )
 
 type Gemini struct {
-	Client    *genai.Client
-	appLogger util.Logger
+	Client       *genai.Client
+	defaultModel string
+	defaultTemp  float32
+	appLogger    util.Logger
 }
 
-func NewGemini(config util.LLMConfig, ctx context.Context, appLogger util.Logger) (*Gemini, error) {
+func NewGemini(config util.LLMSettings, ctx context.Context, appLogger util.Logger) (*Gemini, error) {
+	apiKey := strings.TrimSpace(config.ApiKey)
+	if apiKey == "" {
+		return nil, errors.New("gemini api key is empty")
+	}
+
+	defaultModel := strings.TrimSpace(config.Model)
+	if defaultModel == "" {
+		return nil, errors.New("llm model is empty")
+	}
+
+	defaultTemp := config.Temp
+	if defaultTemp <= 0 {
+		return nil, errors.New("llm temperature must be greater than zero")
+	}
+
 	cfg := &genai.ClientConfig{
-		APIKey: config.ApiKey,
+		APIKey: apiKey,
 	}
 
 	client, err := genai.NewClient(ctx, cfg)
 	if err != nil {
-		appLogger.Error("Failed to create Gemini client", err)
+		appLogger.Error("create gemini client failed", err)
 		return nil, err
 	}
 
-	appLogger.Info("Gemini client created successfully")
+	appLogger.Info("create gemini client success", "default_model", defaultModel, "default_temp", defaultTemp)
 
 	return &Gemini{
-		Client:    client,
-		appLogger: appLogger,
+		Client:       client,
+		defaultModel: defaultModel,
+		defaultTemp:  defaultTemp,
+		appLogger:    appLogger,
 	}, nil
 }
 
@@ -43,12 +64,19 @@ func (G *Gemini) GenerateTextToText(
 	structureOutput map[string]any) (*ports.LLMResponse, error) {
 
 	ctx := context.Background()
+	model = strings.TrimSpace(model)
+	if model == "" {
+		model = G.defaultModel
+	}
+	if temp <= 0 {
+		temp = G.defaultTemp
+	}
 
 	config := &genai.GenerateContentConfig{
 		Temperature: &temp,
 	}
 
-	if structureOutput != nil && len(structureOutput) > 0 {
+	if len(structureOutput) > 0 {
 		config.ResponseMIMEType = "application/json"
 		config.ResponseJsonSchema = structureOutput
 	}
@@ -73,11 +101,11 @@ func (G *Gemini) GenerateTextToText(
 
 	result, err := G.Client.Models.GenerateContent(ctx, model, contents, config)
 	if err != nil {
-		G.appLogger.Error("[infra/llm/gemini/GenerateTextToText] error", err)
+		G.appLogger.Error("generate text to text failed", err, "model", model)
 		return nil, err
 	}
 
-	G.appLogger.Info("[infra/llm/gemini/GenerateTextToText] successfully")
+	G.appLogger.Info("generate text to text success", "model", model)
 
 	response := &ports.LLMResponse{
 		Text: result.Text(),
@@ -86,13 +114,13 @@ func (G *Gemini) GenerateTextToText(
 	if structureOutput != nil && len(structureOutput) > 0 {
 		var jsonData map[string]any
 		if err := json.Unmarshal([]byte(result.Text()), &jsonData); err != nil {
-			G.appLogger.Error("[infra/llm/gemini/GenerateTextToText] failed to parse JSON", err)
+			G.appLogger.Error("generate text to text parse json failed", err, "model", model)
 		} else {
 			response.JSON = jsonData
 		}
 	}
 
-	G.appLogger.Debug("[infra/llm/gemini/GenerateTextToText] response", "text", response.Text)
+	G.appLogger.Debug("generate text to text response", "model", model, "text", response.Text)
 
 	return response, nil
 }
@@ -106,6 +134,13 @@ func (G *Gemini) GenerateTextToImage(
 	structureOutput map[string]any) (*ports.LLMResponse, error) {
 
 	ctx := context.Background()
+	model = strings.TrimSpace(model)
+	if model == "" {
+		model = G.defaultModel
+	}
+	if temp <= 0 {
+		temp = G.defaultTemp
+	}
 
 	config := &genai.GenerateContentConfig{
 		Temperature: &temp,
@@ -118,7 +153,7 @@ func (G *Gemini) GenerateTextToImage(
 
 	imgData, err := os.ReadFile(imagePath)
 	if err != nil {
-		G.appLogger.Error("[infra/llm/gemini/GenerateTextToImage] failed to read image", err)
+		G.appLogger.Error("generate text to image read image failed", err, "image_path", imagePath)
 		return nil, err
 	}
 
@@ -148,11 +183,11 @@ func (G *Gemini) GenerateTextToImage(
 
 	result, err := G.Client.Models.GenerateContent(ctx, model, contents, config)
 	if err != nil {
-		G.appLogger.Error("[infra/llm/gemini/GenerateTextToImage] error", err)
+		G.appLogger.Error("generate text to image failed", err, "model", model)
 		return nil, err
 	}
 
-	G.appLogger.Info("[infra/llm/gemini/GenerateTextToImage] successfully")
+	G.appLogger.Info("generate text to image success", "model", model)
 
 	response := &ports.LLMResponse{
 		Text: result.Text(),
@@ -161,13 +196,13 @@ func (G *Gemini) GenerateTextToImage(
 	if structureOutput != nil && len(structureOutput) > 0 {
 		var jsonData map[string]any
 		if err := json.Unmarshal([]byte(result.Text()), &jsonData); err != nil {
-			G.appLogger.Error("[infra/llm/gemini/GenerateTextToImage] failed to parse JSON", err)
+			G.appLogger.Error("generate text to image parse json failed", err, "model", model)
 		} else {
 			response.JSON = jsonData
 		}
 	}
 
-	G.appLogger.Debug("[infra/llm/gemini/GenerateTextToImage] response", "text", response.Text)
+	G.appLogger.Debug("generate text to image response", "model", model, "text", response.Text)
 
 	return response, nil
 }

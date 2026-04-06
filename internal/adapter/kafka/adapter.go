@@ -33,7 +33,7 @@ type ConsumerAdapter struct {
 func NewInfraAdapters(cfg InfraAdapterConfig, appLogger util.Logger) (*ProducerAdapter, *ConsumerAdapter, error) {
 	if appLogger != nil {
 		appLogger.Info(
-			"internal.adapter.kafka.NewInfraAdapters: initializing kafka adapters",
+			"kafka adapters init start",
 			"brokers", cfg.Brokers,
 			"dial_timeout", cfg.DialTimeout.String(),
 		)
@@ -45,35 +45,35 @@ func NewInfraAdapters(cfg InfraAdapterConfig, appLogger util.Logger) (*ProducerA
 	}, appLogger)
 	if err != nil {
 		if appLogger != nil {
-			appLogger.Error("internal.adapter.kafka.NewInfraAdapters: create kafka client failed", err, "brokers", cfg.Brokers)
+			appLogger.Error("kafka adapters init client failed", err, "brokers", cfg.Brokers)
 		}
 		return nil, nil, fmt.Errorf("create kafka client: %w", err)
 	}
 	if appLogger != nil {
-		appLogger.Info("internal.adapter.kafka.NewInfraAdapters: kafka client created", "brokers", cfg.Brokers)
+		appLogger.Info("kafka adapters init client success", "brokers", cfg.Brokers)
 	}
 
 	publisher, err := infraKafka.NewPublisher(client, cfg.Publisher, appLogger)
 	if err != nil {
 		if appLogger != nil {
-			appLogger.Error("internal.adapter.kafka.NewInfraAdapters: create kafka publisher failed", err)
+			appLogger.Error("kafka adapters init publisher failed", err)
 		}
 		return nil, nil, fmt.Errorf("create kafka publisher: %w", err)
 	}
 	if appLogger != nil {
-		appLogger.Info("internal.adapter.kafka.NewInfraAdapters: kafka publisher created")
+		appLogger.Info("kafka adapters init publisher success")
 	}
 
 	consumer, err := infraKafka.NewKafkaConsumer(client, cfg.Consumer, appLogger)
 	if err != nil {
 		_ = publisher.Close()
 		if appLogger != nil {
-			appLogger.Error("internal.adapter.kafka.NewInfraAdapters: create kafka consumer failed", err)
+			appLogger.Error("kafka adapters init consumer failed", err)
 		}
 		return nil, nil, fmt.Errorf("create kafka consumer: %w", err)
 	}
 	if appLogger != nil {
-		appLogger.Info("internal.adapter.kafka.NewInfraAdapters: kafka consumer created")
+		appLogger.Info("kafka adapters init consumer success")
 	}
 
 	return &ProducerAdapter{
@@ -102,7 +102,7 @@ func (a *ProducerAdapter) Publish(ctx context.Context, topic string, key []byte,
 	}
 	if a.logger != nil {
 		a.logger.Info(
-			"internal.adapter.kafka.ProducerAdapter.Publish: publishing message",
+			"kafka publish start",
 			"topic", topic,
 			"key_len", len(key),
 			"value_len", len(value),
@@ -120,12 +120,12 @@ func (a *ProducerAdapter) Publish(ctx context.Context, topic string, key []byte,
 	})
 	if err != nil {
 		if a.logger != nil {
-			a.logger.Error("internal.adapter.kafka.ProducerAdapter.Publish: publish failed", err, "topic", topic)
+			a.logger.Error("kafka publish failed", err, "topic", topic)
 		}
 		return fmt.Errorf("publish to topic %s: %w", topic, err)
 	}
 	if a.logger != nil {
-		a.logger.Info("internal.adapter.kafka.ProducerAdapter.Publish: publish succeeded", "topic", topic)
+		a.logger.Info("kafka publish success", "topic", topic)
 	}
 	return nil
 }
@@ -134,12 +134,12 @@ func (a *ProducerAdapter) PublishJSON(ctx context.Context, topic string, key []b
 	value, err := json.Marshal(payload)
 	if err != nil {
 		if a.logger != nil {
-			a.logger.Error("internal.adapter.kafka.ProducerAdapter.PublishJSON: marshal payload failed", err, "topic", topic)
+			a.logger.Error("kafka publish json marshal failed", err, "topic", topic)
 		}
 		return fmt.Errorf("marshal payload: %w", err)
 	}
 	if a.logger != nil {
-		a.logger.Debug("internal.adapter.kafka.ProducerAdapter.PublishJSON: payload marshaled", "topic", topic, "value_len", len(value))
+		a.logger.Debug("kafka publish json marshaled", "topic", topic, "value_len", len(value))
 	}
 	return a.Publish(ctx, topic, key, value, headers)
 }
@@ -151,12 +151,12 @@ func (a *ProducerAdapter) Close() error {
 	err := a.publisher.Close()
 	if err != nil {
 		if a.logger != nil {
-			a.logger.Error("internal.adapter.kafka.ProducerAdapter.Close: close publisher failed", err)
+			a.logger.Error("kafka publisher close failed", err)
 		}
 		return err
 	}
 	if a.logger != nil {
-		a.logger.Info("internal.adapter.kafka.ProducerAdapter.Close: publisher closed")
+		a.logger.Info("kafka publisher closed")
 	}
 	return nil
 }
@@ -170,7 +170,7 @@ func (a *ConsumerAdapter) Start(ctx context.Context, topic string, groupID strin
 	}
 	if a.logger != nil {
 		a.logger.Info(
-			"internal.adapter.kafka.ConsumerAdapter.Start: starting consumer loop",
+			"kafka consumer loop start",
 			"topic", topic,
 			"group_id", groupID,
 		)
@@ -181,13 +181,13 @@ func (a *ConsumerAdapter) Start(ctx context.Context, topic string, groupID strin
 		err := a.consumer.Consume(ctx, topic, groupID, handler)
 		if err != nil {
 			if a.logger != nil {
-				a.logger.Error("kafka consumer stopped", err, "topic", topic, "group_id", groupID)
+				a.logger.Error("kafka consumer loop stopped with error", err, "topic", topic, "group_id", groupID)
 			}
 			errCh <- err
 			return
 		}
 		if a.logger != nil {
-			a.logger.Info("kafka consumer stopped gracefully", "topic", topic, "group_id", groupID)
+			a.logger.Info("kafka consumer loop stopped gracefully", "topic", topic, "group_id", groupID)
 		}
 	}()
 
@@ -201,12 +201,12 @@ func (a *ConsumerAdapter) Close() error {
 	err := a.consumer.Close()
 	if err != nil {
 		if a.logger != nil {
-			a.logger.Error("internal.adapter.kafka.ConsumerAdapter.Close: close consumer failed", err)
+			a.logger.Error("kafka consumer close failed", err)
 		}
 		return err
 	}
 	if a.logger != nil {
-		a.logger.Info("internal.adapter.kafka.ConsumerAdapter.Close: consumer closed")
+		a.logger.Info("kafka consumer closed")
 	}
 	return nil
 }

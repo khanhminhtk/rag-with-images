@@ -74,7 +74,7 @@ func (S *LLMService) GenerateTextToText(ctx context.Context, req *pb.TextToTextR
 		request.StructureOutput,
 	)
 	if err != nil {
-		S.appLogger.Error("Failed to generate text to text: ", err)
+		S.appLogger.Error("generate text to text failed", err, "model", request.Model)
 		return nil, err
 	}
 
@@ -100,7 +100,7 @@ func (S *LLMService) GenerateTextToImage(ctx context.Context, req *pb.TextToImag
 		request.StructureOutput,
 	)
 	if err != nil {
-		S.appLogger.Error("Failed to generate text to image: ", err)
+		S.appLogger.Error("generate text to image failed", err, "model", request.Model)
 		return nil, err
 	}
 
