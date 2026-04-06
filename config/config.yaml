@@ -1,13 +1,14 @@
 qdrant:
     bootstrap: "localhost"
-    port: 6334
+    port: "${QDRANT_GRPC_PORT}"
     use_gRPC: false
     log_path: "/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/qdrant.log"
-llm:
-    model: "models/gemini-3-flash-preview"
-    temp: 0.7
-    apikey: "${gemini_api_key}"
-minio:
+llm_service:
+    model: "${LLM_MODEL}"
+    temp: ${LLM_TEMPERATURE}
+    apikey: "${GEMINI_API_KEY}"
+    port: "${LLM_SERVICE_PORT}"
+minio_service:
     endpoint: "localhost:9000"
     access_key: "admin"
     secret_key: "supersecretpassword"
@@ -21,3 +22,27 @@ minio:
         archive: "${MINIO_BUCKET_ARCHIVE}"
     region: "${MINIO_REGION}"
     presign_expiry_seconds: 900
+    grpc_port: "${MINIO_SERVICE_PORT}"
+    topics:
+        upload_request: "${MINIO_KAFKA_UPLOAD_TOPIC}"
+        upload_group: "${MINIO_KAFKA_UPLOAD_GROUP}"
+        upload_result: "${MINIO_KAFKA_RESULT_TOPIC}"
+kafka:
+    brokers: ["${KAFKA_BROKERS}"]
+embedding_service:
+    port: "${EMBEDDING_SERVICE_PORT}"
+    log_path: "${EMBEDDING_SERVICE_LOG_PATH}"
+    jina_config_path: "${EMBEDDING_SERVICE_JINA_CONFIG}"
+    topics:
+        batch_text_request: "${EMBEDDING_SERVICE_KAFKA_BATCH_TEXT_TOPIC}"
+        batch_text_group: "${EMBEDDING_SERVICE_KAFKA_BATCH_TEXT_GROUP}"
+        batch_text_result: "${EMBEDDING_SERVICE_KAFKA_BATCH_TEXT_RESULT_TOPIC}"
+        batch_image_request: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_TOPIC}"
+        batch_image_group: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_GROUP}"
+        batch_image_result: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_RESULT_TOPIC}"
+rag_service:
+    port: "${RAG_SERVICE_PORT}"
+    log_path: "${RAG_SERVICE_LOG_PATH}"
+    qdrant_host: "${RAG_QDRANT_HOST}"
+    qdrant_port: "${RAG_QDRANT_PORT}"
+    qdrant_use_gRPC: ${RAG_QDRANT_USE_GRPC}
