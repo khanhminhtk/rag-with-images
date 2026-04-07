@@ -13,12 +13,13 @@ import (
 )
 
 type Config struct {
-	Qdrant           QdrantConfig      `yaml:"qdrant"`
-	LLMService       LLMSettings       `yaml:"llm_service"`
-	MinIOService     MinIOSettings     `yaml:"minio_service"`
-	Kafka            KafkaConfig       `yaml:"kafka"`
-	EmbeddingService EmbeddingSettings `yaml:"embedding_service"`
-	RAGService       RAGSettings       `yaml:"rag_service"`
+	Qdrant           QdrantConfig         `yaml:"qdrant"`
+	LLMService       LLMSettings          `yaml:"llm_service"`
+	MinIOService     MinIOSettings        `yaml:"minio_service"`
+	Kafka            KafkaConfig          `yaml:"kafka"`
+	EmbeddingService EmbeddingSettings    `yaml:"embedding_service"`
+	RAGService       RAGSettings          `yaml:"rag_service"`
+	FileTraining     FileTrainingSettings `yaml:"process_file_service"`
 }
 
 type LLMSettings struct {
@@ -80,6 +81,21 @@ type RAGSettings struct {
 	QdrantHost    string `yaml:"qdrant_host"`
 	QdrantPort    string `yaml:"qdrant_port"`
 	QdrantUseGRPC bool   `yaml:"qdrant_use_gRPC"`
+	GRPCHost      string `yaml:"rag_grpc_host"`
+	GRPCPort      string `yaml:"rag_grpc_port"`
+}
+
+type FileTrainingTopics struct {
+	ProcessFileRequest string `yaml:"process_file_request"`
+	ProcessFileGroup   string `yaml:"process_file_group"`
+	ProcessFileResult  string `yaml:"process_file_result"`
+}
+
+type FileTrainingSettings struct {
+	Port         string             `yaml:"port"`
+	LogPath      string             `yaml:"log_path"`
+	PathDownload string             `yaml:"path_download"`
+	Topics       FileTrainingTopics `yaml:"topics"`
 }
 
 func (m MinIOSettings) Bucket(name string) string {
@@ -249,10 +265,23 @@ func (c *ConfigLoader) applyEnvOverrides() {
 	if v := firstNonEmptyEnv("RAG_QDRANT_PORT", "RAG_SERVICE_QDRANT_PORT"); v != "" {
 		c.config.RAGService.QdrantPort = v
 	}
+	if v := firstNonEmptyEnv("RAG_GRPC_HOST", "RAG_SERVICE_GRPC_HOST"); v != "" {
+		c.config.RAGService.GRPCHost = v
+	}
+	if v := firstNonEmptyEnv("RAG_GRPC_PORT", "RAG_SERVICE_GRPC_PORT"); v != "" {
+		c.config.RAGService.GRPCPort = v
+	}
 	if v := firstNonEmptyEnv("RAG_QDRANT_USE_GRPC", "RAG_SERVICE_QDRANT_USE_GRPC"); v != "" {
 		if parsed, err := strconv.ParseBool(v); err == nil {
 			c.config.RAGService.QdrantUseGRPC = parsed
 		}
+	}
+
+	if strings.TrimSpace(c.config.RAGService.GRPCHost) == "" {
+		c.config.RAGService.GRPCHost = "localhost"
+	}
+	if strings.TrimSpace(c.config.RAGService.GRPCPort) == "" {
+		c.config.RAGService.GRPCPort = c.config.RAGService.Port
 	}
 
 	if v := firstNonEmptyEnv("GEMINI_API_KEY", "gemini_api_key", "LLM_API_KEY"); v != "" {

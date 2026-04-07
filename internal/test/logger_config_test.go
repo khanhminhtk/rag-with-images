@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewConfigLoader(t *testing.T) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	loader := util.NewConfigLoader(envPath, yamlPath)
@@ -18,7 +18,7 @@ func TestNewConfigLoader(t *testing.T) {
 }
 
 func TestConfigLoader_Load_Success(t *testing.T) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	loader := util.NewConfigLoader(envPath, yamlPath)
@@ -38,10 +38,10 @@ func TestConfigLoader_Load_Success(t *testing.T) {
 		t.Error("Qdrant port is empty")
 	}
 
-	if config.LLM.Model == "" {
+	if config.LLMService.Model == "" {
 		t.Error("LLM model is empty")
 	}
-	if config.LLM.Temp <= 0 {
+	if config.LLMService.Temp <= 0 {
 		t.Error("LLM temp should be greater than 0")
 	}
 
@@ -49,11 +49,11 @@ func TestConfigLoader_Load_Success(t *testing.T) {
 	t.Logf("  Qdrant: Bootstrap=%s, Port=%s, UseGRPC=%v",
 		config.Qdrant.Bootstrap, config.Qdrant.Port, config.Qdrant.UseGRPC)
 	t.Logf("  LLM: Model=%s, Temp=%.2f, ApiKey=%s",
-		config.LLM.Model, config.LLM.Temp, config.LLM.ApiKey)
+		config.LLMService.Model, config.LLMService.Temp, config.LLMService.ApiKey)
 }
 
 func TestConfigLoader_Load_YAMLFileNotFound(t *testing.T) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/nonexistent.yaml"
 
 	loader := util.NewConfigLoader(envPath, yamlPath)
@@ -88,7 +88,7 @@ func TestConfigLoader_Load_InvalidYAML(t *testing.T) {
 }
 
 func TestConfig_QdrantFields(t *testing.T) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	loader := util.NewConfigLoader(envPath, yamlPath)
@@ -120,7 +120,7 @@ func TestConfig_QdrantFields(t *testing.T) {
 }
 
 func TestConfig_LLMFields(t *testing.T) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	loader := util.NewConfigLoader(envPath, yamlPath)
@@ -137,12 +137,12 @@ func TestConfig_LLMFields(t *testing.T) {
 		{
 			name:  "Model",
 			field: "Model",
-			check: func() bool { return config.LLM.Model != "" },
+			check: func() bool { return config.LLMService.Model != "" },
 		},
 		{
 			name:  "Temp",
 			field: "Temp",
-			check: func() bool { return config.LLM.Temp > 0 && config.LLM.Temp <= 2.0 },
+			check: func() bool { return config.LLMService.Temp > 0 && config.LLMService.Temp <= 2.0 },
 		},
 		{
 			name:  "ApiKey",
@@ -161,7 +161,7 @@ func TestConfig_LLMFields(t *testing.T) {
 }
 
 func TestConfig_DefaultValues(t *testing.T) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	loader := util.NewConfigLoader(envPath, yamlPath)
@@ -175,7 +175,7 @@ func TestConfig_DefaultValues(t *testing.T) {
 		t.Errorf("Expected bootstrap %s, got %s", expectedBootstrap, config.Qdrant.Bootstrap)
 	}
 
-	expectedPort := "6333"
+	expectedPort := "6334"
 	if config.Qdrant.Port != expectedPort {
 		t.Errorf("Expected port %s, got %s", expectedPort, config.Qdrant.Port)
 	}
@@ -184,18 +184,21 @@ func TestConfig_DefaultValues(t *testing.T) {
 		t.Errorf("Expected UseGRPC false, got %v", config.Qdrant.UseGRPC)
 	}
 
-	expectedModel := "gemini-3-flash-preview"
-	if config.LLM.Model != expectedModel {
-		t.Errorf("Expected model %s, got %s", expectedModel, config.LLM.Model)
+	expectedModel := "models/gemini-3-flash-preview"
+	if config.LLMService.Model != expectedModel {
+		t.Errorf("Expected model %s, got %s", expectedModel, config.LLMService.Model)
 	}
 
 	expectedTemp := float32(0.7)
-	if config.LLM.Temp != expectedTemp {
-		t.Errorf("Expected temp %.2f, got %.2f", expectedTemp, config.LLM.Temp)
+	if config.LLMService.Temp != expectedTemp {
+		t.Errorf("Expected temp %.2f, got %.2f", expectedTemp, config.LLMService.Temp)
 	}
 }
 
 func TestConfigLoader_ValidStructure(t *testing.T) {
+	t.Setenv("LLM_MODEL", "")
+	t.Setenv("LLM_TEMPERATURE", "")
+
 	tmpDir := t.TempDir()
 	tmpEnv := filepath.Join(tmpDir, "test.env")
 	tmpYAML := filepath.Join(tmpDir, "valid.yaml")
@@ -210,7 +213,7 @@ func TestConfigLoader_ValidStructure(t *testing.T) {
   bootstrap: "test-host"
   port: "9999"
   use_gRPC: true
-llm:
+llm_service:
   model: "test-model"
   temp: 1.5
   apikey: "${TEST_API_KEY}"
@@ -236,18 +239,21 @@ llm:
 		t.Errorf("Expected UseGRPC true, got %v", config.Qdrant.UseGRPC)
 	}
 
-	if config.LLM.Model != "test-model" {
-		t.Errorf("Expected model 'test-model', got %s", config.LLM.Model)
+	if config.LLMService.Model != "test-model" {
+		t.Errorf("Expected model 'test-model', got %s", config.LLMService.Model)
 	}
-	if config.LLM.Temp != 1.5 {
-		t.Errorf("Expected temp 1.5, got %.2f", config.LLM.Temp)
+	if config.LLMService.Temp != 1.5 {
+		t.Errorf("Expected temp 1.5, got %.2f", config.LLMService.Temp)
 	}
-	if config.LLM.ApiKey != "test_key_12345" {
-		t.Errorf("Expected apikey 'test_key_12345', got %s", config.LLM.ApiKey)
+	if config.LLMService.ApiKey != "test_key_12345" {
+		t.Errorf("Expected apikey 'test_key_12345', got %s", config.LLMService.ApiKey)
 	}
 }
 
 func TestConfigLoader_EnvVariableExpansion(t *testing.T) {
+	t.Setenv("LLM_MODEL", "")
+	t.Setenv("LLM_TEMPERATURE", "")
+
 	tmpDir := t.TempDir()
 	tmpEnv := filepath.Join(tmpDir, "test.env")
 	tmpYAML := filepath.Join(tmpDir, "test.yaml")
@@ -263,7 +269,7 @@ func TestConfigLoader_EnvVariableExpansion(t *testing.T) {
   bootstrap: "localhost"
   port: "6333"
   use_gRPC: false
-llm:
+llm_service:
   model: "test-model"
   temp: 0.8
   apikey: "${MY_TEST_API_KEY}"
@@ -279,14 +285,14 @@ llm:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	if config.LLM.ApiKey != testKey {
-		t.Errorf("Expected apikey '%s', got '%s'", testKey, config.LLM.ApiKey)
+	if config.LLMService.ApiKey != testKey {
+		t.Errorf("Expected apikey '%s', got '%s'", testKey, config.LLMService.ApiKey)
 	}
-	t.Logf("Environment variable correctly expanded: %s", config.LLM.ApiKey)
+	t.Logf("Environment variable correctly expanded: %s", config.LLMService.ApiKey)
 }
 
 func TestConfigLoader_GetConfig(t *testing.T) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	loader := util.NewConfigLoader(envPath, yamlPath)
@@ -306,7 +312,7 @@ func TestConfigLoader_GetConfig(t *testing.T) {
 }
 
 func BenchmarkConfigLoader_Load(b *testing.B) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	for i := 0; i < b.N; i++ {
@@ -319,7 +325,7 @@ func BenchmarkConfigLoader_Load(b *testing.B) {
 }
 
 func BenchmarkConfigLoader_LoadWithGetConfig(b *testing.B) {
-	envPath := "../../config/.env"
+	envPath := "../../config/.env.example"
 	yamlPath := "../../config/config.yaml"
 
 	for i := 0; i < b.N; i++ {

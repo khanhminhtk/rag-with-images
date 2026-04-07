@@ -15,18 +15,32 @@ type LLMService struct {
 	llmClient ports.LLM
 }
 
-func parseChatHistory(pbHistory []*pb.ChatHistory) []ports.ChatHistory {
+func parseChatHistory(pbHistory []*pb.ChatHistory) []dtos.ChatHistory {
 	if len(pbHistory) == 0 {
 		return nil
 	}
-	histories := make([]ports.ChatHistory, 0, len(pbHistory))
+	histories := make([]dtos.ChatHistory, 0, len(pbHistory))
 	for _, his := range pbHistory {
-		histories = append(histories, ports.ChatHistory{
+		histories = append(histories, dtos.ChatHistory{
 			Role:    his.Role,
 			Content: his.Content,
 		})
 	}
 	return histories
+}
+
+func toPortsChatHistory(history []dtos.ChatHistory) []ports.ChatHistory {
+	if len(history) == 0 {
+		return nil
+	}
+	out := make([]ports.ChatHistory, 0, len(history))
+	for _, h := range history {
+		out = append(out, ports.ChatHistory{
+			Role:    h.Role,
+			Content: h.Content,
+		})
+	}
+	return out
 }
 
 func parseStructureOutput(pbStruct map[string]string) map[string]any {
@@ -70,7 +84,7 @@ func (S *LLMService) GenerateTextToText(ctx context.Context, req *pb.TextToTextR
 		request.Model,
 		request.Temp,
 		request.Prompt,
-		request.History,
+		toPortsChatHistory(request.History),
 		request.StructureOutput,
 	)
 	if err != nil {
@@ -96,7 +110,7 @@ func (S *LLMService) GenerateTextToImage(ctx context.Context, req *pb.TextToImag
 		request.Temp,
 		req.ImagePath,
 		request.Prompt,
-		request.History,
+		toPortsChatHistory(request.History),
 		request.StructureOutput,
 	)
 	if err != nil {
