@@ -46,3 +46,10 @@ rag_service:
     qdrant_host: "${RAG_QDRANT_HOST}"
     qdrant_port: "${RAG_QDRANT_PORT}"
     qdrant_use_gRPC: ${RAG_QDRANT_USE_GRPC}
+orchestrator_service:
+    port: "${ORCHESTRATOR_SERVICE_PORT}"
+    log_path: "${ORCHESTRATOR_SERVICE_LOG_PATH}"
+    session_ttl_seconds: 1800
+    pre_processing:
+        model: ""
+        temperature: 0
