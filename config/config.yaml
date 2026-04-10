@@ -40,6 +40,16 @@ embedding_service:
         batch_image_request: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_TOPIC}"
         batch_image_group: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_GROUP}"
         batch_image_result: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_RESULT_TOPIC}"
+process_file_service:
+    port: "${PROCESS_FILE_SERVICE_PORT}"
+    log_path: "${PROCESS_FILE_SERVICE_LOG_PATH}"
+    path_download: "${PROCESS_FILE_SERVICE_PATH_DOWNLOAD}"
+    batch_size: 20
+    marker_dev_mode: false
+    topics:
+        process_file_request: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUEST_TOPIC}"
+        process_file_group: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_GROUP}"
+        process_file_result: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_RESULT_TOPIC}"
 rag_service:
     port: "${RAG_SERVICE_PORT}"
     log_path: "${RAG_SERVICE_LOG_PATH}"
