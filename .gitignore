@@ -51,3 +51,4 @@ doc/
 **/*.log
 
 
+test_cases/tmp.sh
