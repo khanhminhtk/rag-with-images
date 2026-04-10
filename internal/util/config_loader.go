@@ -13,13 +13,27 @@ import (
 )
 
 type Config struct {
-	Qdrant           QdrantConfig         `yaml:"qdrant"`
-	LLMService       LLMSettings          `yaml:"llm_service"`
-	MinIOService     MinIOSettings        `yaml:"minio_service"`
-	Kafka            KafkaConfig          `yaml:"kafka"`
-	EmbeddingService EmbeddingSettings    `yaml:"embedding_service"`
-	RAGService       RAGSettings          `yaml:"rag_service"`
-	FileTraining     FileTrainingSettings `yaml:"process_file_service"`
+	Qdrant              QdrantConfig         `yaml:"qdrant"`
+	LLMService          LLMSettings          `yaml:"llm_service"`
+	MinIOService        MinIOSettings        `yaml:"minio_service"`
+	Kafka               KafkaConfig          `yaml:"kafka"`
+	EmbeddingService    EmbeddingSettings    `yaml:"embedding_service"`
+	RAGService          RAGSettings          `yaml:"rag_service"`
+	FileTraining        FileTrainingSettings `yaml:"process_file_service"`
+	OrchestratorService OrchestratorSettings `yaml:"orchestrator_service"`
+}
+
+type OrchestratorSettings struct {
+	Port              string        `yaml:"port"`
+	LogPath           string        `yaml:"log_path"`
+	SessionTTLSeconds int           `yaml:"session_ttl_seconds"`
+	PreProcessing     PreProcessing `yaml:"pre_processing"`
+}
+
+type PreProcessing struct {
+	Model        string  `yaml:"model"`
+	Temperature  float32 `yaml:"temperature"`
+	StructOutput map[string]string
 }
 
 type LLMSettings struct {
@@ -293,6 +307,12 @@ func (c *ConfigLoader) applyEnvOverrides() {
 	if v := firstNonEmptyEnv("LLM_TEMPERATURE"); v != "" {
 		if parsed, err := strconv.ParseFloat(v, 32); err == nil {
 			c.config.LLMService.Temp = float32(parsed)
+		}
+	}
+
+	if v := firstNonEmptyEnv("ORCHESTRATOR_SERVICE_SESSION_TTL_SECONDS", "ORCHESTRATOR_SESSION_TTL_SECONDS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.OrchestratorService.SessionTTLSeconds = parsed
 		}
 	}
 }
