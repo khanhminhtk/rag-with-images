@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"rag_imagetotext_texttoimage/internal/application/dtos"
 	"rag_imagetotext_texttoimage/internal/application/ports"
@@ -117,6 +118,8 @@ func parseLLMResponse(response *ports.LLMResponse) *pb.LLMResponse {
 }
 
 func (S *LLMService) GenerateTextToText(ctx context.Context, req *pb.TextToTextRequest) (*pb.LLMResponse, error) {
+	startedAt := time.Now()
+	S.appLogger.Info("llm grpc GenerateTextToText started", "model", req.Model, "history_count", len(req.History))
 	request := &dtos.LlmRequest{
 		Temp:            req.Temperature,
 		Prompt:          req.Prompt,
@@ -138,10 +141,19 @@ func (S *LLMService) GenerateTextToText(ctx context.Context, req *pb.TextToTextR
 		return nil, err
 	}
 
+	S.appLogger.Info(
+		"llm grpc GenerateTextToText completed",
+		"model", request.Model,
+		"history_count", len(request.History),
+		"has_struct_output", request.StructureOutput != nil,
+		"latency_ms", time.Since(startedAt).Milliseconds(),
+	)
 	return parseLLMResponse(response), nil
 }
 
 func (S *LLMService) GenerateTextToImage(ctx context.Context, req *pb.TextToImageRequest) (*pb.LLMResponse, error) {
+	startedAt := time.Now()
+	S.appLogger.Info("llm grpc GenerateTextToImage started", "model", req.Model, "history_count", len(req.History), "image_path", req.ImagePath)
 	request := &dtos.LlmRequest{
 		Temp:            req.Temperature,
 		Prompt:          req.Prompt,
@@ -164,6 +176,14 @@ func (S *LLMService) GenerateTextToImage(ctx context.Context, req *pb.TextToImag
 		return nil, err
 	}
 
+	S.appLogger.Info(
+		"llm grpc GenerateTextToImage completed",
+		"model", request.Model,
+		"history_count", len(request.History),
+		"image_path", req.ImagePath,
+		"has_struct_output", request.StructureOutput != nil,
+		"latency_ms", time.Since(startedAt).Milliseconds(),
+	)
 	return parseLLMResponse(response), nil
 }
 

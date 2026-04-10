@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	defaultBatchSize = 100
-	maxBatchSize     = 200
+	defaultTrainingBatchSize = 20
+	maxTrainingBatchSize     = 200
 )
 
 func (uc *trainingFileUseCase) UploadVectorDB(ctx context.Context, req *dtos.UploadVectorDBRequest) (dtos.UploadVectorDBResult, error) {
@@ -48,13 +48,7 @@ func (uc *trainingFileUseCase) UploadVectorDB(ctx context.Context, req *dtos.Upl
 		return result, err
 	}
 
-	batchSize := req.BatchSize
-	if batchSize <= 0 {
-		batchSize = defaultBatchSize
-	}
-	if batchSize > maxBatchSize {
-		batchSize = maxBatchSize
-	}
+	batchSize := uc.resolveTrainingBatchSize(req.BatchSize)
 
 	conn, ragClient, err := uc.newRAGServiceClient(ctx)
 	if err != nil {
@@ -140,6 +134,20 @@ func (uc *trainingFileUseCase) UploadVectorDB(ctx context.Context, req *dtos.Upl
 	)
 
 	return result, nil
+}
+
+func (uc *trainingFileUseCase) resolveTrainingBatchSize(requested int) int {
+	batchSize := requested
+	if batchSize <= 0 {
+		batchSize = uc.Config.FileTraining.BatchSize
+	}
+	if batchSize <= 0 {
+		batchSize = defaultTrainingBatchSize
+	}
+	if batchSize > maxTrainingBatchSize {
+		batchSize = maxTrainingBatchSize
+	}
+	return batchSize
 }
 
 func (uc *trainingFileUseCase) newRAGServiceClient(ctx context.Context) (*grpc.ClientConn, pb.RagServiceClient, error) {

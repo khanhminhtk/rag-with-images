@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -35,7 +36,8 @@ func NewFileLogger(filePath string, level slog.Level) (Logger, error) {
 		Level: level,
 	}
 
-	handler := slog.New(slog.NewJSONHandler(f, opts))
+	mw := io.MultiWriter(os.Stdout, f)
+	handler := slog.New(slog.NewJSONHandler(mw, opts))
 
 	return &FileLogger{
 		handler: handler,

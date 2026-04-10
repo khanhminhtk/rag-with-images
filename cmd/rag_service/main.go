@@ -33,6 +33,8 @@ func main() {
 	if err != nil {
 		util.Fatalf("not able to create logger: %v", err)
 	}
+	defer appLogger.Close()
+	appLogger.Info("rag service bootstrap started", "grpc_port", cfg.RAGService.Port, "qdrant_host", cfg.RAGService.QdrantHost, "qdrant_port", cfg.RAGService.QdrantPort, "log_path", cfg.RAGService.LogPath)
 
 	portInt, err := strconv.Atoi(cfg.RAGService.QdrantPort)
 	if err != nil {
@@ -52,6 +54,7 @@ func main() {
 		appLogger.Error("create qdrant client failed", err)
 		return
 	}
+	appLogger.Info("rag service qdrant client ready")
 
 	pointStore := infraQdrant.NewPointStore(client.Raw(), appLogger)
 	collectionStore := infraQdrant.NewCollectionStore(client.Raw(), appLogger)
@@ -74,6 +77,7 @@ func main() {
 	pb.RegisterRagServiceServer(grpcServer, ragService)
 
 	reflection.Register(grpcServer)
+	appLogger.Info("rag service grpc reflection enabled")
 	go func() {
 		appLogger.Info("grpc server listening", "port", cfg.RAGService.Port)
 		if err := grpcServer.Serve(lis); err != nil {

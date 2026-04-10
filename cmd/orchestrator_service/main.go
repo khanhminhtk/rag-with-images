@@ -46,6 +46,7 @@ func main() {
 		util.Fatalf("failed to create logger: %v", err)
 	}
 	defer appLogger.Close()
+	appLogger.Info("orchestrator bootstrap started", "http_port", orchestratorPort, "log_path", logPath)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -63,6 +64,7 @@ func main() {
 		util.Fatalf("failed to create rag service client: %v", err)
 	}
 	defer ragConn.Close()
+	appLogger.Info("orchestrator dependency ready", "service", "rag", "host", ragHost, "port", ragPort)
 
 	llmHost := strings.TrimSpace(os.Getenv("LLM_SERVICE_HOST"))
 	if llmHost == "" {
@@ -74,6 +76,7 @@ func main() {
 		util.Fatalf("failed to create llm service client: %v", err)
 	}
 	defer llmConn.Close()
+	appLogger.Info("orchestrator dependency ready", "service", "llm", "host", llmHost, "port", llmPort)
 
 	dlHost := strings.TrimSpace(os.Getenv("EMBEDDING_SERVICE_HOST"))
 	if dlHost == "" {
@@ -85,6 +88,7 @@ func main() {
 		util.Fatalf("failed to create embedding service client: %v", err)
 	}
 	defer dlConn.Close()
+	appLogger.Info("orchestrator dependency ready", "service", "embedding", "host", dlHost, "port", dlPort)
 
 	prepareOrchestratorDefaults(cfg)
 
@@ -126,6 +130,7 @@ func main() {
 	if sessionTTLSeconds <= 0 {
 		sessionTTLSeconds = 1800
 	}
+	appLogger.Info("orchestrator session config", "session_ttl_seconds", sessionTTLSeconds)
 
 	sessionStore := orchestratorUC.NewInMemorySessionStore(time.Duration(sessionTTLSeconds) * time.Second)
 	defer sessionStore.Close()

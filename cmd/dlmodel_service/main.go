@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -33,16 +34,33 @@ func main() {
 		util.Fatalf("failed to load configuration: %v", err)
 	}
 
-	appLogger, err := util.NewFileLogger(cfg.EmbeddingService.LogPath, slog.LevelInfo)
+	logPath := strings.TrimSpace(cfg.EmbeddingService.LogPath)
+	if logPath == "" || !filepath.IsAbs(logPath) {
+		logPath = filepath.Join("cmd", "dlmodel_service", "logs", "embedding_service.log")
+	}
+
+	appLogger, err := util.NewFileLogger(logPath, slog.LevelInfo)
 	if err != nil {
 		util.Fatalf("failed to initialize logger: %v", err)
 	}
 	defer appLogger.Close()
+	appLogger.Info(
+		"embedding service bootstrap started",
+		"grpc_port", cfg.EmbeddingService.Port,
+		"log_path", logPath,
+		"jina_config_path", cfg.EmbeddingService.JinaConfigPath,
+	)
 
-	appLogger.Info("Initializing Jina CLIP adapter", "config_path", cfg.EmbeddingService.JinaConfigPath)
-	runtimeConfigPath, cleanupRuntimeConfig, err := prepareJinaRuntime(cfg.EmbeddingService.JinaConfigPath)
+	resolvedJinaConfigPath, err := resolveJinaConfigPath(cfg.EmbeddingService.JinaConfigPath)
 	if err != nil {
-		appLogger.Error("failed to prepare jina runtime", err, "config_path", cfg.EmbeddingService.JinaConfigPath)
+		appLogger.Error("failed to resolve jina config path", err, "config_path", cfg.EmbeddingService.JinaConfigPath)
+		util.Fatalf("failed to resolve jina config path: %v", err)
+	}
+
+	appLogger.Info("Initializing Jina CLIP adapter", "config_path", cfg.EmbeddingService.JinaConfigPath, "resolved_config_path", resolvedJinaConfigPath)
+	runtimeConfigPath, cleanupRuntimeConfig, err := prepareJinaRuntime(resolvedJinaConfigPath)
+	if err != nil {
+		appLogger.Error("failed to prepare jina runtime", err, "config_path", cfg.EmbeddingService.JinaConfigPath, "resolved_config_path", resolvedJinaConfigPath)
 		util.Fatalf("failed to prepare jina runtime: %v", err)
 	}
 	defer cleanupRuntimeConfig()
@@ -57,6 +75,7 @@ func main() {
 		util.Fatalf("failed to initialize Jina adapter: %v", err)
 	}
 	defer jinaAdapter.Close()
+	appLogger.Info("jina adapter ready", "runtime_config_path", runtimeConfigPath)
 
 	embeddingService := grpcAdapter.NewEmbeddingService(appLogger, jinaAdapter)
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.EmbeddingService.Port))
@@ -65,9 +84,13 @@ func main() {
 		util.Fatalf("failed to listen grpc port %s: %v", cfg.EmbeddingService.Port, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.MaxRecvMsgSize(30*1024*1024),
+		grpc.MaxSendMsgSize(30*1024*1024),
+	)
 	pb.RegisterDeepLearningServiceServer(grpcServer, embeddingService)
 	reflection.Register(grpcServer)
+	appLogger.Info("embedding grpc reflection enabled")
 
 	rootCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -91,6 +114,7 @@ func main() {
 	}
 	defer producer.Close()
 	defer consumer.Close()
+	appLogger.Info("embedding kafka adapters ready")
 
 	topics := cfg.EmbeddingService.Topics
 	topics.BatchTextRequest = strings.TrimSpace(topics.BatchTextRequest)
@@ -313,6 +337,47 @@ func prepareJinaRuntime(rawConfigPath string) (string, func(), error) {
 		_ = os.Remove(tmpFile.Name())
 	}
 	return tmpFile.Name(), cleanup, nil
+}
+
+func resolveJinaConfigPath(rawConfigPath string) (string, error) {
+	p := strings.TrimSpace(rawConfigPath)
+	if p == "" {
+		return "", fmt.Errorf("jina config path is empty")
+	}
+
+	if filepath.IsAbs(p) {
+		if _, err := os.Stat(p); err != nil {
+			return "", err
+		}
+		return p, nil
+	}
+
+	candidates := make([]string, 0, 4)
+	candidates = append(candidates, p)
+
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, filepath.Join(wd, p))
+	}
+
+	if _, currentFile, _, ok := runtime.Caller(0); ok {
+		cmdDir := filepath.Dir(currentFile)
+		candidates = append(candidates, filepath.Join(cmdDir, p))
+		repoRoot := filepath.Clean(filepath.Join(cmdDir, "..", ".."))
+		candidates = append(candidates, filepath.Join(repoRoot, p))
+	}
+
+	for _, candidate := range candidates {
+		abs, err := filepath.Abs(candidate)
+		if err != nil {
+			continue
+		}
+		info, statErr := os.Stat(abs)
+		if statErr == nil && !info.IsDir() {
+			return abs, nil
+		}
+	}
+
+	return "", fmt.Errorf("cannot resolve jina config path from %q", rawConfigPath)
 }
 
 func resolveMaybeRelative(baseDir string, p string) string {

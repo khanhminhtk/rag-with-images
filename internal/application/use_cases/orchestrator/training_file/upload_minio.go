@@ -54,8 +54,8 @@ func (uc *trainingFileUseCase) UploadToMinio(ctx context.Context, folderDownload
 
 	payload, err := json.Marshal(
 		map[string]any{
-			"folder_download": folderDownload,
-			"url_download":   urlDownload,
+			"folderDownload": folderDownload,
+			"urlDownload":    urlDownload,
 		},
 	)
 	if err != nil {
@@ -71,7 +71,7 @@ func (uc *trainingFileUseCase) UploadToMinio(ctx context.Context, folderDownload
 				Key:   []byte(fmt.Sprintf("upload-%s", filepath.Base(folderDownload))),
 				Value: payload,
 				Headers: map[string]string{
-					"Content-Type":   "application/json",
+					"Content-Type":    "application/json",
 					"Folder-Download": folderDownload,
 					"URL-Download":    urlDownload,
 					"source":          "training_file",

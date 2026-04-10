@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"rag_imagetotext_texttoimage/internal/application/dtos"
 	"rag_imagetotext_texttoimage/internal/application/ports"
@@ -27,6 +28,10 @@ func NewEmbeddingService(appLogger util.Logger, infer ports.Inference) *Embeddin
 
 func (s *EmbeddingService) EmbedText(ctx context.Context, req *pb.EmbedTextRequest) (*pb.EmbedTextResponse, error) {
 	_ = ctx
+	startedAt := time.Now()
+	if req != nil {
+		s.appLogger.Info("embedding grpc EmbedText started", "text_len", len(strings.TrimSpace(req.Text)))
+	}
 
 	if req == nil {
 		err := errors.New("request is nil")
@@ -52,6 +57,7 @@ func (s *EmbeddingService) EmbedText(ctx context.Context, req *pb.EmbedTextReque
 		Dimension: len(embedding),
 		Status:    true,
 	}
+	s.appLogger.Info("embedding grpc EmbedText completed", "dimension", response.Dimension, "latency_ms", time.Since(startedAt).Milliseconds())
 
 	return &pb.EmbedTextResponse{
 		Embedding: response.Embedding,
@@ -62,6 +68,10 @@ func (s *EmbeddingService) EmbedText(ctx context.Context, req *pb.EmbedTextReque
 
 func (s *EmbeddingService) EmbedImage(ctx context.Context, req *pb.EmbedImageRequest) (*pb.EmbedImageResponse, error) {
 	_ = ctx
+	startedAt := time.Now()
+	if req != nil {
+		s.appLogger.Info("embedding grpc EmbedImage started", "image_count", len(req.Images), "width", req.Width, "height", req.Height, "channels", req.Channels)
+	}
 
 	if req == nil {
 		err := errors.New("request is nil")
@@ -104,6 +114,7 @@ func (s *EmbeddingService) EmbedImage(ctx context.Context, req *pb.EmbedImageReq
 		Dimension: len(embedding),
 		Status:    true,
 	}
+	s.appLogger.Info("embedding grpc EmbedImage completed", "dimension", response.Dimension, "latency_ms", time.Since(startedAt).Milliseconds())
 
 	return &pb.EmbedImageResponse{
 		Embedding: response.Embedding,

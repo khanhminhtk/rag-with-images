@@ -52,6 +52,17 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 		return result, err
 	}
 
+	effectiveBatchSize := uc.resolveTrainingBatchSize(req.BatchSize)
+	markerDevMode := uc.Config.FileTraining.MarkerDevMode
+	uc.logger.Info(
+		"internal.application.use_cases.orchestrator.training_file.ProcessAndIngest batch config resolved",
+		"uuid", uuid,
+		"request_batch_size", req.BatchSize,
+		"config_batch_size", uc.Config.FileTraining.BatchSize,
+		"effective_batch_size", effectiveBatchSize,
+		"marker_dev_mode", markerDevMode,
+	)
+
 	timeout := time.Duration(req.TimeoutSeconds) * time.Second
 	if timeout <= 0 {
 		timeout = defaultPipelineTimeout
@@ -103,7 +114,7 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 		FilePath: downloadRes.FilePath,
 		DistDir:  processDir,
 		Uuid:     uuid,
-		Dev:      false,
+		Dev:      markerDevMode,
 	})
 	if err != nil {
 		return result, fmt.Errorf("step marker analysis failed: %w", err)
@@ -140,7 +151,7 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 	for _, chunk := range chunks {
 		texts = append(texts, chunk.Text)
 	}
-	textVectors, err := uc.embedTextAsyncByKafka(pipelineCtx, uuid, texts)
+	textVectors, err := uc.embedTextAsyncByKafka(pipelineCtx, uuid, texts, effectiveBatchSize)
 	if err != nil {
 		return result, fmt.Errorf("step embed text failed: %w", err)
 	}
@@ -208,7 +219,7 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 	uploadRes, err := uc.UploadVectorDB(pipelineCtx, &dtos.UploadVectorDBRequest{
 		CollectionName: collectionName,
 		Points:         points,
-		BatchSize:      req.BatchSize,
+		BatchSize:      effectiveBatchSize,
 	})
 	if err != nil {
 		return result, fmt.Errorf("step upload vectordb failed: %w", err)

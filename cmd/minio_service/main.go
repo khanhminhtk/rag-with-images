@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -33,11 +34,13 @@ func main() {
 		util.Fatalf("failed to load config: %v", err)
 	}
 
-	appLogger, err := util.NewFileLogger("logs/minio_service.log", slog.LevelInfo)
+	logPath := filepath.Join("cmd", "minio_service", "logs", "minio_service.log")
+	appLogger, err := util.NewFileLogger(logPath, slog.LevelInfo)
 	if err != nil {
 		util.Fatalf("failed to create logger: %v", err)
 	}
 	defer appLogger.Close()
+	appLogger.Info("minio service bootstrap started", "grpc_port", cfg.MinIOService.GRPCPort, "endpoint", cfg.MinIOService.Endpoint, "log_path", logPath)
 
 	minioClient, err := infraMinio.NewMinioCleant(appLogger, infraMinio.Config{
 		Endpoint:  cfg.MinIOService.Endpoint,
@@ -50,6 +53,7 @@ func main() {
 		appLogger.Error("failed to create minio client", err)
 		util.Fatalf("failed to create minio client: %v", err)
 	}
+	appLogger.Info("minio client ready", "endpoint", cfg.MinIOService.Endpoint, "region", cfg.MinIOService.Region)
 
 	minioStorage := infraMinio.NewMinIOStorage(*minioClient, appLogger)
 
@@ -101,6 +105,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterMinioServiceServer(grpcServer, minioService)
 	reflection.Register(grpcServer)
+	appLogger.Info("minio grpc reflection enabled")
 
 	rootCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -115,6 +120,12 @@ func main() {
 	if topics.UploadGroup == "" {
 		util.Fatalf("minio upload group is empty")
 	}
+	appLogger.Info(
+		"minio kafka topic config",
+		"upload_request", topics.UploadRequest,
+		"upload_group", topics.UploadGroup,
+		"upload_result", topics.UploadResult,
+	)
 
 	producer, consumer, err := kafkaAdapter.NewInfraAdapters(kafkaAdapter.InfraAdapterConfig{
 		Brokers:     cfg.Kafka.Brokers,

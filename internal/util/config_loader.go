@@ -109,6 +109,8 @@ type FileTrainingSettings struct {
 	Port         string             `yaml:"port"`
 	LogPath      string             `yaml:"log_path"`
 	PathDownload string             `yaml:"path_download"`
+	BatchSize    int                `yaml:"batch_size"`
+	MarkerDevMode bool              `yaml:"marker_dev_mode"`
 	Topics       FileTrainingTopics `yaml:"topics"`
 }
 
@@ -307,6 +309,17 @@ func (c *ConfigLoader) applyEnvOverrides() {
 	if v := firstNonEmptyEnv("LLM_TEMPERATURE"); v != "" {
 		if parsed, err := strconv.ParseFloat(v, 32); err == nil {
 			c.config.LLMService.Temp = float32(parsed)
+		}
+	}
+
+	if v := firstNonEmptyEnv("PROCESS_FILE_SERVICE_BATCH_SIZE"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.FileTraining.BatchSize = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("PROCESS_FILE_SERVICE_MARKER_DEV_MODE"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			c.config.FileTraining.MarkerDevMode = parsed
 		}
 	}
 

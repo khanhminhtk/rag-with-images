@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -20,13 +21,13 @@ import (
 )
 
 func main() {
-	appLogger, err := util.NewFileLogger("logs/llm_service.log", slog.LevelDebug)
+	logPath := filepath.Join("cmd", "llm_service", "logs", "llm_service.log")
+	appLogger, err := util.NewFileLogger(logPath, slog.LevelDebug)
 	if err != nil {
 		util.Fatalf("failed to initialize logger: %v", err)
 	}
 	defer appLogger.Close()
-
-	appLogger.Info("llm service startup")
+	appLogger.Info("llm service bootstrap started", "env_path", "config/.env", "yaml_path", "config/config.yaml", "log_path", logPath)
 
 	envPath := "config/.env"
 	yamlPath := "config/config.yaml"
@@ -37,6 +38,7 @@ func main() {
 		util.Fatalf("failed to load configuration: %v", err)
 	}
 	appLogger.Info("load configuration success")
+	appLogger.Info("llm runtime config", "grpc_port", cfg.LLMService.Port, "model", cfg.LLMService.Model, "temperature", cfg.LLMService.Temp)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -46,6 +48,7 @@ func main() {
 		appLogger.Error("initialize gemini client failed", err)
 		util.Fatalf("failed to initialize gemini client: %v", err)
 	}
+	appLogger.Info("gemini client ready")
 
 	llmServiceServer := grpcAdapter.NewLLMService(appLogger, geminiClient)
 
@@ -59,6 +62,7 @@ func main() {
 	pb.RegisterLlmServiceServer(grpcServer, llmServiceServer)
 
 	reflection.Register(grpcServer)
+	appLogger.Info("llm grpc reflection enabled")
 
 	go func() {
 		appLogger.Info("gRPC server listening", "port", cfg.LLMService.Port)

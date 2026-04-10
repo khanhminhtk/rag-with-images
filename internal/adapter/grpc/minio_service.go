@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"time"
 
 	"rag_imagetotext_texttoimage/internal/application/dtos"
 	useCaseMinio "rag_imagetotext_texttoimage/internal/application/use_cases/minio"
@@ -25,6 +26,9 @@ func NewMinioService(deleteFileUseCase *useCaseMinio.DeleteFileInputUseCase, pre
 }
 
 func (m *MinioService) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*pb.DeleteFileResponse, error) {
+	startedAt := time.Now()
+	m.appLogger.Info("minio grpc DeleteFile started", "object_key", req.ObjectKey)
+
 	err := m.DeleteFileUseCase.Execute(ctx, &dtos.DeleteFileMinioRequest{
 		ObjectKey: req.ObjectKey,
 	})
@@ -34,13 +38,16 @@ func (m *MinioService) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest
 			Success: false,
 		}, err
 	}
-	m.appLogger.Info("delete file succeeded", "object_key", req.ObjectKey)
+	m.appLogger.Info("minio grpc DeleteFile completed", "object_key", req.ObjectKey, "success", true, "latency_ms", time.Since(startedAt).Milliseconds())
 	return &pb.DeleteFileResponse{
 		Success: true,
 	}, nil
 }
 
 func (m *MinioService) PresignUploadURL(ctx context.Context, req *pb.PresignUploadURLRequest) (*pb.PresignUploadURLResponse, error) {
+	startedAt := time.Now()
+	m.appLogger.Info("minio grpc PresignUploadURL started", "object_key", req.ObjectKey)
+
 	url, err := m.PresignUseCase.Execute(ctx, &dtos.PresignGetObjectMinioRequest{
 		ObjectKey: req.ObjectKey,
 	})
@@ -51,7 +58,7 @@ func (m *MinioService) PresignUploadURL(ctx context.Context, req *pb.PresignUplo
 			Url:     "",
 		}, err
 	}
-	m.appLogger.Info("presign upload url succeeded", "object_key", req.ObjectKey)
+	m.appLogger.Info("minio grpc PresignUploadURL completed", "object_key", req.ObjectKey, "success", true, "latency_ms", time.Since(startedAt).Milliseconds())
 	return &pb.PresignUploadURLResponse{
 		Success: true,
 		Url:     url,

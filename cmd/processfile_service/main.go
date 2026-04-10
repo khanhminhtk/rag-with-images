@@ -40,6 +40,12 @@ func main() {
 		util.Fatalf("failed to create logger: %v", err)
 	}
 	defer appLogger.Close()
+	appLogger.Info("process file service bootstrap started", "log_path", logPath)
+	appLogger.Info(
+		"process file runtime config",
+		"batch_size", cfg.FileTraining.BatchSize,
+		"marker_dev_mode", cfg.FileTraining.MarkerDevMode,
+	)
 
 	topics := cfg.FileTraining.Topics
 	topics.ProcessFileRequest = strings.TrimSpace(topics.ProcessFileRequest)
@@ -52,6 +58,12 @@ func main() {
 	if topics.ProcessFileGroup == "" {
 		util.Fatalf("process_file_group is empty")
 	}
+	appLogger.Info(
+		"process file kafka topic config",
+		"request_topic", topics.ProcessFileRequest,
+		"group_id", topics.ProcessFileGroup,
+		"result_topic", topics.ProcessFileResult,
+	)
 
 	kafkaClient, err := infraKafka.NewKafkaClient(infraKafka.KafkaConfig{
 		Brokers:     cfg.Kafka.Brokers,
@@ -79,6 +91,7 @@ func main() {
 		util.Fatalf("failed to create kafka consumer: %v", err)
 	}
 	defer consumer.Close()
+	appLogger.Info("process file kafka adapters ready")
 
 	producerAdapter := kafkaAdapter.NewProducerAdapter(publisher)
 	consumerAdapter := kafkaAdapter.NewConsumerAdapter(consumer, appLogger)
