@@ -7,12 +7,13 @@ import (
 	"sync"
 
 	"rag_imagetotext_texttoimage/internal/application/use_cases/orchestrator"
+	portsOrchestrator"rag_imagetotext_texttoimage/internal/application/ports/orchestrator"
 	"rag_imagetotext_texttoimage/internal/util"
 	pb "rag_imagetotext_texttoimage/proto"
 )
 
 type ChatbotHandler struct {
-	Session              orchestrator.InMemorySessionStore
+	Session              *orchestrator.InMemorySessionStore
 	appLogger            util.Logger
 	Config               util.Config
 	RagServiceClient     pb.RagServiceClient
@@ -24,7 +25,7 @@ type ChatbotHandler struct {
 }
 
 func NewChatbotHandler(
-	session orchestrator.InMemorySessionStore,
+	session *orchestrator.InMemorySessionStore,
 	config util.Config,
 	ragClient pb.RagServiceClient,
 	modelDLClient pb.DeepLearningServiceClient,
@@ -204,6 +205,15 @@ func (c *ChatbotHandler) Execute(
 		imagePath,
 		uuid,
 	)
+
+	sessionData, err := c.Session.GetSession(uuid)
+	sessionData.ChatHistory.AddMessage(
+		portsOrchestrator.ChatMessage{
+			Role: query,
+			Content: responseAnswer.Text,
+		},
+	)
+
 	if err != nil {
 		return "", err
 	}
