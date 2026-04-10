@@ -2,6 +2,8 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
 	"rag_imagetotext_texttoimage/internal/application/dtos"
 	"rag_imagetotext_texttoimage/internal/application/ports"
@@ -47,11 +49,55 @@ func parseStructureOutput(pbStruct map[string]string) map[string]any {
 	if len(pbStruct) == 0 {
 		return nil
 	}
-	structureOutput := make(map[string]any, len(pbStruct))
+
+	properties := make(map[string]any, len(pbStruct))
+	required := make([]string, 0, len(pbStruct))
+
 	for k, v := range pbStruct {
-		structureOutput[k] = v
+		key := strings.TrimSpace(k)
+		if key == "" {
+			continue
+		}
+
+		value := strings.TrimSpace(v)
+		if value == "" {
+			value = "string"
+		}
+
+		// Allow advanced schema per-field via JSON value,
+		// e.g. {"type":"array","items":{"type":"string"}}.
+		var propertySchema map[string]any
+		if strings.HasPrefix(value, "{") {
+			if err := json.Unmarshal([]byte(value), &propertySchema); err == nil && len(propertySchema) > 0 {
+				properties[key] = propertySchema
+				required = append(required, key)
+				continue
+			}
+		}
+
+		typeName := strings.ToLower(value)
+		switch typeName {
+		case "string", "number", "integer", "boolean", "object", "array":
+		default:
+			typeName = "string"
+		}
+
+		properties[key] = map[string]any{
+			"type": typeName,
+		}
+		required = append(required, key)
 	}
-	return structureOutput
+
+	if len(properties) == 0 {
+		return nil
+	}
+
+	return map[string]any{
+		"type":                 "object",
+		"properties":           properties,
+		"required":             required,
+		"additionalProperties": false,
+	}
 }
 
 func parseLLMResponse(response *ports.LLMResponse) *pb.LLMResponse {
