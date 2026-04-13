@@ -6,12 +6,11 @@ REQUEST_TOPIC="${REQUEST_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUES
 RESULT_TOPIC="${RESULT_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_RESULT_TOPIC:-orchestrator.training_file.process_and_ingest.result}}"
 
 UUID="${UUID:-ai_sota_0001}"
-COLLECTION_NAME="${COLLECTION_NAME:-ai_sota_0001_collection}"
 LANG_VALUE="${LANG_VALUE:-vi}"
-URL_DOWNLOAD="${URL_DOWNLOAD:-file:///home/minhtk/code/rag_imtotext_texttoim/tmp/ai_sota_0001.pdf}"
-DOWNLOAD_ROOT_DIR="${DOWNLOAD_ROOT_DIR:-$ROOT_DIR/data/download}"
-PROCESS_ROOT_DIR="${PROCESS_ROOT_DIR:-$ROOT_DIR/data/processed}"
-UPLOAD_ROOT_DIR="${UPLOAD_ROOT_DIR:-$ROOT_DIR/data/upload}"
+UPLINK_HOST="${UPLINK_HOST:-localhost}"
+UPLINK_PORT="${UPLINK_PORT:-8000}"
+UPLINK_PATH="${UPLINK_PATH:-/download/ai_sota_0001.pdf}"
+URL_DOWNLOAD="${URL_DOWNLOAD:-http://${UPLINK_HOST}:${UPLINK_PORT}${UPLINK_PATH}}"
 CORRELATION_ID="processfile-${UUID}-$(date +%s)"
 
 echo "== [0] Start processfile service in another terminal =="
@@ -25,6 +24,7 @@ if [[ "$URL_DOWNLOAD" == file://* ]]; then
   ls -lh "$PDF_PATH"
 else
   echo "URL_DOWNLOAD is remote URL: $URL_DOWNLOAD"
+  echo "Tip: run uplink with: cd /home/minhtk/code/rag_imtotext_texttoim && python3 fastapi_uplink.py"
 fi
 echo
 
@@ -34,7 +34,7 @@ docker exec -i "$KAFKA_CONTAINER" kafka-topics.sh --bootstrap-server "$KAFKA_BOO
 
 echo "== [3] Publish request =="
 docker exec -i "$KAFKA_CONTAINER" kafka-console-producer.sh --bootstrap-server "$KAFKA_BOOTSTRAP" --topic "$REQUEST_TOPIC" <<JSON
-{"uuid":"$UUID","url_download":"$URL_DOWNLOAD","collection_name":"$COLLECTION_NAME","lang":"$LANG_VALUE","timeout_seconds":900,"download_root_dir":"$DOWNLOAD_ROOT_DIR","process_root_dir":"$PROCESS_ROOT_DIR","upload_root_dir":"$UPLOAD_ROOT_DIR","correlation_id":"$CORRELATION_ID"}
+{"uuid":"$UUID","url_download":"$URL_DOWNLOAD","lang":"$LANG_VALUE","timeout_seconds":900,"correlation_id":"$CORRELATION_ID"}
 JSON
 
 echo "Published correlation_id=$CORRELATION_ID"
