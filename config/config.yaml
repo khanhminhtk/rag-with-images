@@ -2,7 +2,7 @@ qdrant:
     bootstrap: "localhost"
     port: "${QDRANT_GRPC_PORT}"
     use_gRPC: false
-    log_path: "/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/qdrant.log"
+    log_path: "logs/qdrant.log"
 llm_service:
     model: "${LLM_MODEL}"
     temp: ${LLM_TEMPERATURE}
@@ -43,9 +43,13 @@ embedding_service:
 process_file_service:
     port: "${PROCESS_FILE_SERVICE_PORT}"
     log_path: "${PROCESS_FILE_SERVICE_LOG_PATH}"
-    path_download: "${PROCESS_FILE_SERVICE_PATH_DOWNLOAD}"
     batch_size: 20
     marker_dev_mode: false
+    min_chunk_chars: 20
+    min_chunk_tokens: 8
+    max_chunk_tokens: 160
+    semantic_similarity_threshold: 0.85
+    chunk_overlap_sentences: 1
     topics:
         process_file_request: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUEST_TOPIC}"
         process_file_group: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_GROUP}"
@@ -56,10 +60,23 @@ rag_service:
     qdrant_host: "${RAG_QDRANT_HOST}"
     qdrant_port: "${RAG_QDRANT_PORT}"
     qdrant_use_gRPC: ${RAG_QDRANT_USE_GRPC}
+    qdrant_request_timeout_seconds: 15
+    qdrant_retry_attempts: 3
+    qdrant_retry_backoff_ms: 300
 orchestrator_service:
     port: "${ORCHESTRATOR_SERVICE_PORT}"
     log_path: "${ORCHESTRATOR_SERVICE_LOG_PATH}"
     session_ttl_seconds: 1800
+    memory_history_top_k: ${ORCHESTRATOR_SERVICE_MEMORY_HISTORY_TOP_K}
+    vectordb:
+        shards: ${ORCHESTRATOR_VECTORDB_SHARDS}
+        replication_factor: ${ORCHESTRATOR_VECTORDB_REPLICATION_FACTOR}
+        on_disk_payload: ${ORCHESTRATOR_VECTORDB_ON_DISK_PAYLOAD}
+        optimizers_memmap: ${ORCHESTRATOR_VECTORDB_OPTIMIZERS_MEMMAP}
+        text_vector_size: ${ORCHESTRATOR_VECTORDB_TEXT_VECTOR_SIZE}
+        text_vector_distance: "${ORCHESTRATOR_VECTORDB_TEXT_VECTOR_DISTANCE}"
+        image_vector_size: ${ORCHESTRATOR_VECTORDB_IMAGE_VECTOR_SIZE}
+        image_vector_distance: "${ORCHESTRATOR_VECTORDB_IMAGE_VECTOR_DISTANCE}"
     pre_processing:
         model: ""
         temperature: 0
