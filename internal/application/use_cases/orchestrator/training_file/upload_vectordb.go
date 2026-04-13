@@ -57,6 +57,11 @@ func (uc *trainingFileUseCase) UploadVectorDB(ctx context.Context, req *dtos.Upl
 	}
 	defer conn.Close()
 
+	if err := uc.ensureRAGCollection(ctx, ragClient, collectionName, req.Points); err != nil {
+		uc.logger.Error("internal.application.use_cases.orchestrator.training_file.UploadVectorDB ensure collection failed", err, "collection_name", collectionName)
+		return result, err
+	}
+
 	batch := make([]*pb.Point, 0, batchSize)
 	inserted := 0
 	skipped := 0
@@ -134,6 +139,63 @@ func (uc *trainingFileUseCase) UploadVectorDB(ctx context.Context, req *dtos.Upl
 	)
 
 	return result, nil
+}
+
+func (uc *trainingFileUseCase) ensureRAGCollection(ctx context.Context, ragClient pb.RagServiceClient, collectionName string, points []dtos.UploadVectorDBPoint) error {
+	vectorSizeByName := map[string]uint64{}
+	for _, p := range points {
+		for _, v := range p.Vectors {
+			name := strings.TrimSpace(v.Name)
+			if name == "" || len(v.Vector) == 0 {
+				continue
+			}
+			if _, exists := vectorSizeByName[name]; exists {
+				continue
+			}
+			vectorSizeByName[name] = uint64(len(v.Vector))
+		}
+	}
+
+	vectors := make([]*pb.CollectionVectorConfig, 0, len(vectorSizeByName))
+	if sz, ok := vectorSizeByName["text_dense"]; ok {
+		vectors = append(vectors, &pb.CollectionVectorConfig{
+			Name:     "text_dense",
+			Size:     sz,
+			Distance: "cosine",
+		})
+	}
+	if sz, ok := vectorSizeByName["image_dense"]; ok {
+		vectors = append(vectors, &pb.CollectionVectorConfig{
+			Name:     "image_dense",
+			Size:     sz,
+			Distance: "cosine",
+		})
+	}
+	if len(vectors) == 0 {
+		return errors.New("cannot ensure collection: no valid vector config derived from points")
+	}
+
+	resp, err := ragClient.CreateCollection(ctx, &pb.SchemaCollection{
+		Name:              collectionName,
+		Vectors:           vectors,
+		OnDiskPayload:     true,
+		OptimizersMemmap:  true,
+		Shards:            1,
+		ReplicationFactor: 1,
+	})
+	if err != nil {
+		return fmt.Errorf("create collection %q failed: %w", collectionName, err)
+	}
+	if resp == nil || !resp.Status {
+		return fmt.Errorf("create collection %q returned status=false", collectionName)
+	}
+
+	uc.logger.Info(
+		"internal.application.use_cases.orchestrator.training_file.UploadVectorDB collection ensured",
+		"collection_name", collectionName,
+		"vector_count", len(vectors),
+	)
+	return nil
 }
 
 func (uc *trainingFileUseCase) resolveTrainingBatchSize(requested int) int {

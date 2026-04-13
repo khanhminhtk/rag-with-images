@@ -33,7 +33,9 @@ func (h *HTTPHandlerTrainingFile) HTTPHandlerProcessAndIngestExecute(
 	}
 
 	var req orchestratordto.ProcessAndIngestRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
 		util.WriteJSON(w, http.StatusBadRequest, orchestratordto.ErrorResponse{Error: "invalid request body"})
 		return
 	}

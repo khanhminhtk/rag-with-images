@@ -2,8 +2,10 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	portsOrchestrator "rag_imagetotext_texttoimage/internal/application/ports/orchestrator"
 	pb "rag_imagetotext_texttoimage/proto"
 )
 
@@ -15,16 +17,24 @@ func (c *ChatbotHandler) llmChat(
 	query string,
 	structOutput map[string]string,
 	imagePath string,
-	uuid string,
+	session_id string,
+	stage string,
 ) (*pb.LLMResponse, error) {
-	sessionData, err := c.Session.GetSession(uuid)
+	if c == nil || c.Session == nil {
+		return nil, errors.New("session store is not configured")
+	}
+
+	sessionData, err := c.Session.GetSession(session_id)
 	if err != nil {
 		return nil, err
 	}
 
-	chatHistory, err := sessionData.ChatHistory.GetChatHistory()
-	if err != nil {
-		return nil, err
+	chatHistory := make([]portsOrchestrator.ChatMessage, 0)
+	if sessionData.ChatHistory != nil {
+		chatHistory, err = sessionData.ChatHistory.GetChatHistory()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	history := make([]*pb.ChatHistory, 0, len(chatHistory))
@@ -33,6 +43,15 @@ func (c *ChatbotHandler) llmChat(
 			Role:    h.Role,
 			Content: h.Content,
 		})
+	}
+	if c.appLogger != nil {
+		c.appLogger.Info(
+			"internal.application.use_cases.orchestrator.chat.llmChat request context",
+			"stage", stage,
+			"session_id", session_id,
+			"history_count", len(history),
+			"query_len", len(strings.TrimSpace(query)),
+		)
 	}
 
 	fullPrompt := strings.TrimSpace(prompt + " " + query)

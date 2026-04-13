@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -15,28 +14,29 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
+	"rag_imagetotext_texttoimage/internal/bootstrap"
 	"rag_imagetotext_texttoimage/internal/infra/llm"
 	"rag_imagetotext_texttoimage/internal/util"
 	pb "rag_imagetotext_texttoimage/proto"
 )
 
 func main() {
-	logPath := filepath.Join("cmd", "llm_service", "logs", "llm_service.log")
-	appLogger, err := util.NewFileLogger(logPath, slog.LevelDebug)
+	logPath := "logs/llm_service.log"
+	cfg, appLogger, err := bootstrap.BuildConfigAndLogger(bootstrap.CmdRuntimeOptions{
+		Namespace: "llm_service",
+		EnvPath:   "config/.env",
+		YamlPath:  "config/config.yaml",
+		LogLevel:  slog.LevelDebug,
+		ResolveLogPath: func(_ *util.Config) string {
+			return logPath
+		},
+	})
 	if err != nil {
-		util.Fatalf("failed to initialize logger: %v", err)
+		util.Fatalf("failed to bootstrap llm runtime: %v", err)
 	}
 	defer appLogger.Close()
 	appLogger.Info("llm service bootstrap started", "env_path", "config/.env", "yaml_path", "config/config.yaml", "log_path", logPath)
 
-	envPath := "config/.env"
-	yamlPath := "config/config.yaml"
-	configLoader := util.NewConfigLoader(envPath, yamlPath)
-	cfg, err := configLoader.Load()
-	if err != nil {
-		appLogger.Error("load configuration failed", err)
-		util.Fatalf("failed to load configuration: %v", err)
-	}
 	appLogger.Info("load configuration success")
 	appLogger.Info("llm runtime config", "grpc_port", cfg.LLMService.Port, "model", cfg.LLMService.Model, "temperature", cfg.LLMService.Temp)
 

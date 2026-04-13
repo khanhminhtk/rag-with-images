@@ -8,33 +8,34 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
 	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
 	usecases "rag_imagetotext_texttoimage/internal/application/use_cases"
+	"rag_imagetotext_texttoimage/internal/bootstrap"
 	infraQdrant "rag_imagetotext_texttoimage/internal/infra/qdrant"
 	"rag_imagetotext_texttoimage/internal/util"
 	pb "rag_imagetotext_texttoimage/proto"
 )
 
 func main() {
-	configLoader := util.NewConfigLoader(
-		"./config/.env",
-		"./config/config.yaml",
-	)
-	if _, err := configLoader.Load(); err != nil {
-		util.Fatalf("failed to load configuration: %v", err)
-	}
-	cfg := configLoader.GetConfig()
-
-	appLogger, err := util.NewFileLogger(cfg.RAGService.LogPath, slog.LevelInfo)
+	cfg, appLogger, err := bootstrap.BuildConfigAndLogger(bootstrap.CmdRuntimeOptions{
+		Namespace: "rag_service",
+		EnvPath:   "./config/.env",
+		YamlPath:  "./config/config.yaml",
+		LogLevel:  slog.LevelInfo,
+		ResolveLogPath: func(_ *util.Config) string {
+			return "logs/rag_service.log"
+		},
+	})
 	if err != nil {
-		util.Fatalf("not able to create logger: %v", err)
+		util.Fatalf("failed to bootstrap rag runtime: %v", err)
 	}
 	defer appLogger.Close()
-	appLogger.Info("rag service bootstrap started", "grpc_port", cfg.RAGService.Port, "qdrant_host", cfg.RAGService.QdrantHost, "qdrant_port", cfg.RAGService.QdrantPort, "log_path", cfg.RAGService.LogPath)
+	appLogger.Info("rag service bootstrap started", "grpc_port", cfg.RAGService.Port, "qdrant_host", cfg.RAGService.QdrantHost, "qdrant_port", cfg.RAGService.QdrantPort, "log_path", "logs/rag_service.log")
 
 	portInt, err := strconv.Atoi(cfg.RAGService.QdrantPort)
 	if err != nil {
@@ -57,7 +58,13 @@ func main() {
 	appLogger.Info("rag service qdrant client ready")
 
 	pointStore := infraQdrant.NewPointStore(client.Raw(), appLogger)
-	collectionStore := infraQdrant.NewCollectionStore(client.Raw(), appLogger)
+	collectionStore := infraQdrant.NewCollectionStore(
+		client.Raw(),
+		appLogger,
+		infraQdrant.WithQdrantRequestTimeout(time.Duration(cfg.RAGService.QdrantRequestTimeoutSeconds)*time.Second),
+		infraQdrant.WithQdrantRetryAttempts(cfg.RAGService.QdrantRetryAttempts),
+		infraQdrant.WithQdrantRetryBackoff(time.Duration(cfg.RAGService.QdrantRetryBackoffMs)*time.Millisecond),
+	)
 
 	searchWithVectorDB := usecases.NewSearchWithVectorDB(appLogger, pointStore)
 

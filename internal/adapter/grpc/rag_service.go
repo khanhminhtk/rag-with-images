@@ -64,13 +64,8 @@ func (r *RagService) CreateCollection(ctx context.Context, req *pb.SchemaCollect
 		return &pb.ResponseCreateCollection{Name: req.Name, Status: false}, err
 	}
 
-	exists, err := r.collectionStore.CollectionExists(ctx, schema.Name)
-	if err != nil {
-		return &pb.ResponseCreateCollection{Name: req.Name, Status: false}, err
-	}
-
-	r.appLogger.Info("rag grpc CreateCollection completed", "collection", req.Name, "status", exists, "latency_ms", time.Since(startedAt).Milliseconds())
-	return &pb.ResponseCreateCollection{Name: req.Name, Status: exists}, nil
+	r.appLogger.Info("rag grpc CreateCollection completed", "collection", req.Name, "status", true, "latency_ms", time.Since(startedAt).Milliseconds())
+	return &pb.ResponseCreateCollection{Name: req.Name, Status: true}, nil
 }
 
 func (r *RagService) DeleteCollection(ctx context.Context, req *pb.DeleteCollectionRequest) (*pb.ResponseDeleteCollection, error) {

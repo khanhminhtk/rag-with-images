@@ -27,13 +27,13 @@ func consineSimilarity(vecA, vecB []float32) (float32, error) {
 	}
 
 	if normA == 0 || normB == 0 {
-		return 0, fmt.Errorf("cannot compute cosine similarity for zero-length vectors")
+		return 0, fmt.Errorf("cannot compute cosine similarity for zero-norm vectors")
 	}
 
 	return dotProduct / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB)))), nil
 }
 
-func (uc *trainingFileUseCase) DoSemanticChunking(ctx context.Context, emb [][]float32) error {
+func (uc *trainingFileUseCase) DoSemanticChunking(ctx context.Context, emb [][]float32, threshold float32) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -43,15 +43,20 @@ func (uc *trainingFileUseCase) DoSemanticChunking(ctx context.Context, emb [][]f
 	if len(emb[0]) == 0 {
 		return fmt.Errorf("embedding at index 0 is empty")
 	}
+	if isZeroNormVector(emb[0]) {
+		return fmt.Errorf("embedding at index 0 has zero norm")
+	}
 
 	dimension := len(emb[0])
 	for i := 1; i < len(emb); i++ {
 		if len(emb[i]) != dimension {
 			return fmt.Errorf("embedding dimension mismatch at index %d: expected %d, got %d", i, dimension, len(emb[i]))
 		}
+		if isZeroNormVector(emb[i]) {
+			return fmt.Errorf("embedding at index %d has zero norm", i)
+		}
 	}
 
-	const similarityThreshold float32 = 0.85
 	chunks := make([]SemanticChunk, 0, len(emb))
 
 	currentChunk := SemanticChunk{
@@ -69,7 +74,7 @@ func (uc *trainingFileUseCase) DoSemanticChunking(ctx context.Context, emb [][]f
 			return fmt.Errorf("compute cosine similarity at index %d: %w", i, err)
 		}
 
-		if similarity >= similarityThreshold {
+		if similarity >= threshold {
 			currentChunk.Texts = append(currentChunk.Texts, fmt.Sprintf("segment_%d", i))
 			currentChunk.Embedding = append(currentChunk.Embedding, cloneFloat32Slice(emb[i]))
 			continue
@@ -89,7 +94,7 @@ func (uc *trainingFileUseCase) DoSemanticChunking(ctx context.Context, emb [][]f
 			"embedding_count", len(emb),
 			"chunk_count", len(chunks),
 			"dimension", dimension,
-			"threshold", similarityThreshold,
+			"threshold", threshold,
 		)
 	}
 

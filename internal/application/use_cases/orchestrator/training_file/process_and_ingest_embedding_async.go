@@ -17,6 +17,8 @@ import (
 	"rag_imagetotext_texttoimage/internal/application/ports"
 )
 
+const embeddingImageTargetSize = 224
+
 func (uc *trainingFileUseCase) embedTextAsyncByKafka(ctx context.Context, uuid string, texts []string, reqBatchSize int) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, errors.New("texts is empty")
@@ -32,6 +34,8 @@ func (uc *trainingFileUseCase) embedTextAsyncByKafka(ctx context.Context, uuid s
 	}
 
 	batchSize := uc.resolveTrainingBatchSize(reqBatchSize)
+	totalBatches := (len(texts) + batchSize - 1) / batchSize
+	startedAt := time.Now()
 
 	groupID := "training-file-embed-text-" + uuid
 	allEmbeddings := make([][]float32, 0, len(texts))
@@ -78,13 +82,36 @@ func (uc *trainingFileUseCase) embedTextAsyncByKafka(ctx context.Context, uuid s
 		}
 
 		allEmbeddings = append(allEmbeddings, res.Embeddings...)
+		zeroNormInBatch := 0
+		for _, emb := range res.Embeddings {
+			if isZeroNormVector(emb) {
+				zeroNormInBatch++
+			}
+		}
+		elapsed := time.Since(startedAt)
+		itemsPerSec := float64(len(allEmbeddings))
+		if elapsed.Seconds() > 0 {
+			itemsPerSec = itemsPerSec / elapsed.Seconds()
+		}
+		remaining := len(texts) - len(allEmbeddings)
+		etaSec := 0.0
+		if itemsPerSec > 0 {
+			etaSec = float64(remaining) / itemsPerSec
+		}
+		progressBar := formatEmbeddingProgressBar(len(allEmbeddings), len(texts), 28)
+
 		uc.logger.Info(
 			"internal.application.use_cases.orchestrator.training_file.embedTextAsyncByKafka batch completed",
 			"uuid", uuid,
 			"batch_index", batchIndex,
+			"batch_total", totalBatches,
 			"batch_size", len(batchTexts),
 			"processed", len(allEmbeddings),
 			"total", len(texts),
+			"progress_bar", progressBar,
+			"items_per_sec", fmt.Sprintf("%.2f", itemsPerSec),
+			"eta_sec", fmt.Sprintf("%.1f", etaSec),
+			"zero_norm_in_batch", zeroNormInBatch,
 		)
 	}
 
@@ -104,7 +131,7 @@ func (uc *trainingFileUseCase) embedSingleImageAsyncByKafka(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	rgbBytes, width, height := imageToRGBBytes(img)
+	rgbBytes, width, height := imageToRGBBytesWithSize(img, embeddingImageTargetSize, embeddingImageTargetSize)
 
 	topicReq := strings.TrimSpace(uc.Config.EmbeddingService.Topics.BatchImageRequest)
 	topicRes := strings.TrimSpace(uc.Config.EmbeddingService.Topics.BatchImageResult)

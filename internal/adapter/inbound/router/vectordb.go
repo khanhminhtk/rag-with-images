@@ -15,12 +15,14 @@ import (
 )
 
 type HTTPHandlerVectordb struct {
-	vectordb *orchestratoruc.VectordbHandler
+	vectordb      *orchestratoruc.VectordbHandler
+	vectordbSetup util.VectordbSetup
 }
 
-func NewHTTPHandlerVectordb(vectordb *orchestratoruc.VectordbHandler) *HTTPHandlerVectordb {
+func NewHTTPHandlerVectordb(vectordb *orchestratoruc.VectordbHandler, vectordbSetup util.VectordbSetup) *HTTPHandlerVectordb {
 	return &HTTPHandlerVectordb{
-		vectordb: vectordb,
+		vectordb:      vectordb,
+		vectordbSetup: vectordbSetup,
 	}
 }
 
@@ -36,7 +38,9 @@ func (h *HTTPHandlerVectordb) HTTPHandlerCreateCollectionExecute(
 	}
 
 	var req orchestratordto.CreateCollectionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
 		util.WriteJSON(w, http.StatusBadRequest, orchestratordto.ErrorResponse{Error: "invalid request body"})
 		return
 	}
@@ -47,22 +51,24 @@ func (h *HTTPHandlerVectordb) HTTPHandlerCreateCollectionExecute(
 		return
 	}
 
-	vectors := make([]*pb.CollectionVectorConfig, 0, len(req.Vectors))
-	for _, item := range req.Vectors {
-		vectors = append(vectors, &pb.CollectionVectorConfig{
-			Name:     strings.TrimSpace(item.Name),
-			Size:     item.Size,
-			Distance: strings.TrimSpace(item.Distance),
-		})
-	}
-
 	status, err := h.vectordb.CreateCollection(r.Context(), &pb.SchemaCollection{
-		Name:              req.Name,
-		Vectors:           vectors,
-		Shards:            req.Shards,
-		ReplicationFactor: req.ReplicationFactor,
-		OnDiskPayload:     req.OnDiskPayload,
-		OptimizersMemmap:  req.OptimizersMemmap,
+		Name: req.Name,
+		Vectors: []*pb.CollectionVectorConfig{
+			{
+				Name:     "text_dense",
+				Size:     h.vectordbSetup.TextVectorSize,
+				Distance: strings.TrimSpace(h.vectordbSetup.TextVectorDistance),
+			},
+			{
+				Name:     "image_dense",
+				Size:     h.vectordbSetup.ImageVectorSize,
+				Distance: strings.TrimSpace(h.vectordbSetup.ImageVectorDistance),
+			},
+		},
+		Shards:            h.vectordbSetup.Shards,
+		ReplicationFactor: h.vectordbSetup.ReplicationFactor,
+		OnDiskPayload:     h.vectordbSetup.OnDiskPayload,
+		OptimizersMemmap:  h.vectordbSetup.OptimizersMemmap,
 	})
 	if err != nil {
 		httpStatus := http.StatusInternalServerError

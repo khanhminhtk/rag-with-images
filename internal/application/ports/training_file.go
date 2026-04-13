@@ -13,5 +13,5 @@ type TrainingFileUseCase interface {
 	EmbeddingBatchImageTraining(ctx context.Context, req *dtos.TrainingEmbeddingBatchImageRequest) (dtos.TrainingEmbeddingBatchImageResult, error)
 	UploadVectorDB(ctx context.Context, req *dtos.UploadVectorDBRequest) (dtos.UploadVectorDBResult, error)
 	ProcessAndIngest(ctx context.Context, req *dtos.ProcessAndIngestRequest) (dtos.ProcessAndIngestResult, error)
-	DoSemanticChunking(ctx context.Context, emb [][]float32) error
+	DoSemanticChunking(ctx context.Context, emb [][]float32, threshold float32) error
 }

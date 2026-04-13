@@ -63,13 +63,22 @@ func getContentType(filename string) string {
 	return ""
 }
 
-func (d *UploadLocalFileToMinIOUseCase) sanitizeObjectKey(parsedURL *neturl.URL) string {
-	objectKey := path.Base(parsedURL.Path)
-	objectKey = strings.TrimSpace(objectKey)
-	if objectKey == "" || objectKey == "." || objectKey == "/" {
+func (d *UploadLocalFileToMinIOUseCase) sanitizeObjectFilename(parsedURL *neturl.URL) string {
+	filename := path.Base(parsedURL.Path)
+	filename = strings.TrimSpace(filename)
+	if filename == "" || filename == "." || filename == "/" {
 		return "uploaded-file"
 	}
-	return objectKey
+	return filename
+}
+
+func (d *UploadLocalFileToMinIOUseCase) buildObjectKey(folderDownload string, parsedURL *neturl.URL) string {
+	filename := d.sanitizeObjectFilename(parsedURL)
+	uuidPrefix := strings.TrimSpace(filepath.Base(folderDownload))
+	if uuidPrefix == "" || uuidPrefix == "." || uuidPrefix == "/" {
+		return filename
+	}
+	return path.Join(uuidPrefix, filename)
 }
 
 func (d *UploadLocalFileToMinIOUseCase) buildTemporaryUploadFile(ctx context.Context, folderDownload string, rawURL string) (tempDir string, localFilePath string, objectKey string, err error) {
@@ -81,7 +90,8 @@ func (d *UploadLocalFileToMinIOUseCase) buildTemporaryUploadFile(ctx context.Con
 	if err != nil {
 		return "", "", "", err
 	}
-	objectKey = d.sanitizeObjectKey(parsedURL)
+	localFilename := d.sanitizeObjectFilename(parsedURL)
+	objectKey = d.buildObjectKey(folderDownload, parsedURL)
 
 	tempDir, err = os.MkdirTemp(folderDownload, "minio-upload-*")
 	if err != nil {
@@ -96,7 +106,7 @@ func (d *UploadLocalFileToMinIOUseCase) buildTemporaryUploadFile(ctx context.Con
 		}
 	}()
 
-	localFilePath = filepath.Join(tempDir, objectKey)
+	localFilePath = filepath.Join(tempDir, localFilename)
 	dstFile, err := os.Create(localFilePath)
 	if err != nil {
 		return tempDir, "", "", err

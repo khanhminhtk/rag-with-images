@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -142,16 +143,60 @@ func (uc *trainingFileUseCase) EmbeddingBatchImageTraining(ctx context.Context, 
 
 func imageToRGBBytes(img image.Image) ([]byte, int, int) {
 	bounds := img.Bounds()
+	return imageToRGBBytesWithSize(img, bounds.Dx(), bounds.Dy())
+}
+
+func imageToRGBBytesWithSize(img image.Image, targetWidth, targetHeight int) ([]byte, int, int) {
+	if targetWidth <= 0 || targetHeight <= 0 {
+		bounds := img.Bounds()
+		targetWidth = bounds.Dx()
+		targetHeight = bounds.Dy()
+	}
+
+	scaled := resizeImageNearest(img, targetWidth, targetHeight)
+	bounds := scaled.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
 
 	rgb := make([]byte, 0, width*height*3)
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			r, g, b, _ := img.At(x, y).RGBA()
+			r, g, b, _ := scaled.At(x, y).RGBA()
 			rgb = append(rgb, byte(r>>8), byte(g>>8), byte(b>>8))
 		}
 	}
 
 	return rgb, width, height
+}
+
+func resizeImageNearest(src image.Image, targetWidth, targetHeight int) *image.RGBA {
+	dst := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
+	srcBounds := src.Bounds()
+	srcWidth := srcBounds.Dx()
+	srcHeight := srcBounds.Dy()
+
+	if srcWidth <= 0 || srcHeight <= 0 {
+		for y := 0; y < targetHeight; y++ {
+			for x := 0; x < targetWidth; x++ {
+				dst.Set(x, y, color.RGBA{0, 0, 0, 255})
+			}
+		}
+		return dst
+	}
+
+	for y := 0; y < targetHeight; y++ {
+		srcY := srcBounds.Min.Y + (y*srcHeight)/targetHeight
+		if srcY >= srcBounds.Max.Y {
+			srcY = srcBounds.Max.Y - 1
+		}
+		for x := 0; x < targetWidth; x++ {
+			srcX := srcBounds.Min.X + (x*srcWidth)/targetWidth
+			if srcX >= srcBounds.Max.X {
+				srcX = srcBounds.Max.X - 1
+			}
+			dst.Set(x, y, src.At(srcX, srcY))
+		}
+	}
+
+	return dst
 }

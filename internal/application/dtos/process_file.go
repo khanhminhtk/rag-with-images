@@ -64,15 +64,10 @@ type UploadVectorDBResult struct {
 }
 
 type ProcessAndIngestRequest struct {
-	UUID            string `json:"uuid"`
-	URLDownload     string `json:"url_download"`
-	CollectionName  string `json:"collection_name"`
-	Lang            string `json:"lang,omitempty"`
-	TimeoutSeconds  int    `json:"timeout_seconds,omitempty"`
-	BatchSize       int    `json:"batch_size,omitempty"`
-	DownloadRootDir string `json:"download_root_dir,omitempty"`
-	ProcessRootDir  string `json:"process_root_dir,omitempty"`
-	UploadRootDir   string `json:"upload_root_dir,omitempty"`
+	UUID           string `json:"uuid"`
+	URLDownload    string `json:"url_download"`
+	Lang           string `json:"lang,omitempty"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
 }
 
 type ProcessAndIngestResult struct {

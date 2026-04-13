@@ -27,7 +27,20 @@ type OrchestratorSettings struct {
 	Port              string        `yaml:"port"`
 	LogPath           string        `yaml:"log_path"`
 	SessionTTLSeconds int           `yaml:"session_ttl_seconds"`
+	MemoryHistoryTopK int           `yaml:"memory_history_top_k"`
 	PreProcessing     PreProcessing `yaml:"pre_processing"`
+	Vectordb          VectordbSetup `yaml:"vectordb"`
+}
+
+type VectordbSetup struct {
+	Shards              uint32 `yaml:"shards"`
+	ReplicationFactor   uint32 `yaml:"replication_factor"`
+	OnDiskPayload       bool   `yaml:"on_disk_payload"`
+	OptimizersMemmap    bool   `yaml:"optimizers_memmap"`
+	TextVectorSize      uint64 `yaml:"text_vector_size"`
+	TextVectorDistance  string `yaml:"text_vector_distance"`
+	ImageVectorSize     uint64 `yaml:"image_vector_size"`
+	ImageVectorDistance string `yaml:"image_vector_distance"`
 }
 
 type PreProcessing struct {
@@ -90,13 +103,16 @@ type EmbeddingTopics struct {
 }
 
 type RAGSettings struct {
-	Port          string `yaml:"port"`
-	LogPath       string `yaml:"log_path"`
-	QdrantHost    string `yaml:"qdrant_host"`
-	QdrantPort    string `yaml:"qdrant_port"`
-	QdrantUseGRPC bool   `yaml:"qdrant_use_gRPC"`
-	GRPCHost      string `yaml:"rag_grpc_host"`
-	GRPCPort      string `yaml:"rag_grpc_port"`
+	Port                        string `yaml:"port"`
+	LogPath                     string `yaml:"log_path"`
+	QdrantHost                  string `yaml:"qdrant_host"`
+	QdrantPort                  string `yaml:"qdrant_port"`
+	QdrantUseGRPC               bool   `yaml:"qdrant_use_gRPC"`
+	QdrantRequestTimeoutSeconds int    `yaml:"qdrant_request_timeout_seconds"`
+	QdrantRetryAttempts         int    `yaml:"qdrant_retry_attempts"`
+	QdrantRetryBackoffMs        int    `yaml:"qdrant_retry_backoff_ms"`
+	GRPCHost                    string `yaml:"rag_grpc_host"`
+	GRPCPort                    string `yaml:"rag_grpc_port"`
 }
 
 type FileTrainingTopics struct {
@@ -106,12 +122,16 @@ type FileTrainingTopics struct {
 }
 
 type FileTrainingSettings struct {
-	Port         string             `yaml:"port"`
-	LogPath      string             `yaml:"log_path"`
-	PathDownload string             `yaml:"path_download"`
-	BatchSize    int                `yaml:"batch_size"`
-	MarkerDevMode bool              `yaml:"marker_dev_mode"`
-	Topics       FileTrainingTopics `yaml:"topics"`
+	Port                        string             `yaml:"port"`
+	LogPath                     string             `yaml:"log_path"`
+	BatchSize                   int                `yaml:"batch_size"`
+	MarkerDevMode               bool               `yaml:"marker_dev_mode"`
+	MinChunkChars               int                `yaml:"min_chunk_chars"`
+	MinChunkTokens              int                `yaml:"min_chunk_tokens"`
+	MaxChunkTokens              int                `yaml:"max_chunk_tokens"`
+	SemanticSimilarityThreshold float32            `yaml:"semantic_similarity_threshold"`
+	ChunkOverlapSentences       int                `yaml:"chunk_overlap_sentences"`
+	Topics                      FileTrainingTopics `yaml:"topics"`
 }
 
 func (m MinIOSettings) Bucket(name string) string {
@@ -292,6 +312,21 @@ func (c *ConfigLoader) applyEnvOverrides() {
 			c.config.RAGService.QdrantUseGRPC = parsed
 		}
 	}
+	if v := firstNonEmptyEnv("RAG_QDRANT_REQUEST_TIMEOUT_SECONDS", "RAG_SERVICE_QDRANT_REQUEST_TIMEOUT_SECONDS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.RAGService.QdrantRequestTimeoutSeconds = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("RAG_QDRANT_RETRY_ATTEMPTS", "RAG_SERVICE_QDRANT_RETRY_ATTEMPTS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.RAGService.QdrantRetryAttempts = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("RAG_QDRANT_RETRY_BACKOFF_MS", "RAG_SERVICE_QDRANT_RETRY_BACKOFF_MS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.RAGService.QdrantRetryBackoffMs = parsed
+		}
+	}
 
 	if strings.TrimSpace(c.config.RAGService.GRPCHost) == "" {
 		c.config.RAGService.GRPCHost = "localhost"
@@ -322,11 +357,77 @@ func (c *ConfigLoader) applyEnvOverrides() {
 			c.config.FileTraining.MarkerDevMode = parsed
 		}
 	}
+	if v := firstNonEmptyEnv("PROCESS_FILE_SERVICE_MIN_CHUNK_CHARS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			c.config.FileTraining.MinChunkChars = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("PROCESS_FILE_SERVICE_MIN_CHUNK_TOKENS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			c.config.FileTraining.MinChunkTokens = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("PROCESS_FILE_SERVICE_MAX_CHUNK_TOKENS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.FileTraining.MaxChunkTokens = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("PROCESS_FILE_SERVICE_SEMANTIC_SIMILARITY_THRESHOLD"); v != "" {
+		if parsed, err := strconv.ParseFloat(v, 32); err == nil {
+			c.config.FileTraining.SemanticSimilarityThreshold = float32(parsed)
+		}
+	}
+	if v := firstNonEmptyEnv("PROCESS_FILE_SERVICE_CHUNK_OVERLAP_SENTENCES"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			c.config.FileTraining.ChunkOverlapSentences = parsed
+		}
+	}
 
 	if v := firstNonEmptyEnv("ORCHESTRATOR_SERVICE_SESSION_TTL_SECONDS", "ORCHESTRATOR_SESSION_TTL_SECONDS"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
 			c.config.OrchestratorService.SessionTTLSeconds = parsed
 		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_SERVICE_MEMORY_HISTORY_TOP_K"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.OrchestratorService.MemoryHistoryTopK = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_SHARDS"); v != "" {
+		if parsed, err := strconv.ParseUint(v, 10, 32); err == nil && parsed > 0 {
+			c.config.OrchestratorService.Vectordb.Shards = uint32(parsed)
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_REPLICATION_FACTOR"); v != "" {
+		if parsed, err := strconv.ParseUint(v, 10, 32); err == nil && parsed > 0 {
+			c.config.OrchestratorService.Vectordb.ReplicationFactor = uint32(parsed)
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_ON_DISK_PAYLOAD"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			c.config.OrchestratorService.Vectordb.OnDiskPayload = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_OPTIMIZERS_MEMMAP"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			c.config.OrchestratorService.Vectordb.OptimizersMemmap = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_TEXT_VECTOR_SIZE"); v != "" {
+		if parsed, err := strconv.ParseUint(v, 10, 64); err == nil && parsed > 0 {
+			c.config.OrchestratorService.Vectordb.TextVectorSize = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_IMAGE_VECTOR_SIZE"); v != "" {
+		if parsed, err := strconv.ParseUint(v, 10, 64); err == nil && parsed > 0 {
+			c.config.OrchestratorService.Vectordb.ImageVectorSize = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_TEXT_VECTOR_DISTANCE"); v != "" {
+		c.config.OrchestratorService.Vectordb.TextVectorDistance = v
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_IMAGE_VECTOR_DISTANCE"); v != "" {
+		c.config.OrchestratorService.Vectordb.ImageVectorDistance = v
 	}
 }
 

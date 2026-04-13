@@ -28,7 +28,7 @@ func main() {
 	ctx := context.Background()
 
 	appLogger, err := util.NewFileLogger(
-		"/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/app.log",
+		"logs/app.log",
 		slog.LevelInfo,
 	)
 

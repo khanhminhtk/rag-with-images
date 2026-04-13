@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,15 +19,23 @@ import (
 	orchestratorUC "rag_imagetotext_texttoimage/internal/application/use_cases/orchestrator"
 	chatUC "rag_imagetotext_texttoimage/internal/application/use_cases/orchestrator/chat"
 	trainingfile "rag_imagetotext_texttoimage/internal/application/use_cases/orchestrator/training_file"
+	"rag_imagetotext_texttoimage/internal/bootstrap"
 	infraKafka "rag_imagetotext_texttoimage/internal/infra/kafka"
 	"rag_imagetotext_texttoimage/internal/util"
 )
 
 func main() {
-	configLoader := util.NewConfigLoader("./config/.env", "./config/config.yaml")
-	cfg, err := configLoader.Load()
+	cfg, appLogger, err := bootstrap.BuildConfigAndLogger(bootstrap.CmdRuntimeOptions{
+		Namespace: "orchestrator_service",
+		EnvPath:   "./config/.env",
+		YamlPath:  "./config/config.yaml",
+		LogLevel:  slog.LevelInfo,
+		ResolveLogPath: func(_ *util.Config) string {
+			return "logs/orchestrator_service.log"
+		},
+	})
 	if err != nil {
-		util.Fatalf("failed to load config: %v", err)
+		util.Fatalf("failed to bootstrap orchestrator runtime: %v", err)
 	}
 
 	orchestratorPort := strings.TrimSpace(cfg.OrchestratorService.Port)
@@ -36,16 +46,8 @@ func main() {
 		orchestratorPort = "8080"
 	}
 
-	logPath := strings.TrimSpace(cfg.OrchestratorService.LogPath)
-	if logPath == "" {
-		logPath = "logs/orchestrator_service.log"
-	}
-
-	appLogger, err := util.NewFileLogger(logPath, slog.LevelInfo)
-	if err != nil {
-		util.Fatalf("failed to create logger: %v", err)
-	}
 	defer appLogger.Close()
+	logPath := "logs/orchestrator_service.log"
 	appLogger.Info("orchestrator bootstrap started", "http_port", orchestratorPort, "log_path", logPath)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -91,6 +93,21 @@ func main() {
 	appLogger.Info("orchestrator dependency ready", "service", "embedding", "host", dlHost, "port", dlPort)
 
 	prepareOrchestratorDefaults(cfg)
+	promptPreprocessing, prePromptPath, err := loadPromptFromCandidates(promptPreprocessingCandidates)
+	if err != nil {
+		util.Fatalf("failed to load preprocessing prompt: %v", err)
+	}
+	promptPostprocessing, postPromptPath, err := loadPromptFromCandidates(promptPostprocessingCandidates)
+	if err != nil {
+		util.Fatalf("failed to load postprocessing prompt: %v", err)
+	}
+	appLogger.Info(
+		"orchestrator prompts loaded",
+		"preprocessing_path", prePromptPath,
+		"preprocessing_chars", len(promptPreprocessing),
+		"postprocessing_path", postPromptPath,
+		"postprocessing_chars", len(promptPostprocessing),
+	)
 
 	kafkaClient, err := infraKafka.NewKafkaClient(infraKafka.KafkaConfig{
 		Brokers:     normalizeBrokers(cfg.Kafka.Brokers),
@@ -136,12 +153,13 @@ func main() {
 	defer sessionStore.Close()
 	chatHandlerUC := chatUC.NewChatbotHandler(
 		sessionStore,
+		appLogger,
 		*cfg,
 		ragClient,
 		dlClient,
 		llmClient,
-		cfg.OrchestratorService.PreProcessing.Model,
-		"",
+		promptPreprocessing,
+		promptPostprocessing,
 		defaultPromptAnswer,
 	)
 	vectordbHandlerUC := orchestratorUC.NewVectordbHandler(ragClient)
@@ -149,7 +167,7 @@ func main() {
 
 	httpHandler := inbound.NewHTTPHandler(
 		inboundRouter.NewHTTPHandlerChat(chatHandlerUC),
-		inboundRouter.NewHTTPHandlerVectordb(vectordbHandlerUC),
+		inboundRouter.NewHTTPHandlerVectordb(vectordbHandlerUC, cfg.OrchestratorService.Vectordb),
 		inboundRouter.NewHTTPHandlerTrainingFile(trainingFileUseCase),
 	)
 	router := inbound.SetupRouter(httpHandler)
@@ -189,10 +207,30 @@ func prepareOrchestratorDefaults(cfg *util.Config) {
 	}
 	if cfg.OrchestratorService.PreProcessing.StructOutput == nil {
 		cfg.OrchestratorService.PreProcessing.StructOutput = map[string]string{
-			"NewQuery":       "string",
-			"CurrentQuery":   "string",
-			"CollectionName": "string",
+			"NewQuery":     "string",
+			"CurrentQuery": "string",
 		}
+	}
+	if cfg.OrchestratorService.MemoryHistoryTopK <= 0 {
+		cfg.OrchestratorService.MemoryHistoryTopK = 5
+	}
+	if cfg.OrchestratorService.Vectordb.Shards == 0 {
+		cfg.OrchestratorService.Vectordb.Shards = 1
+	}
+	if cfg.OrchestratorService.Vectordb.ReplicationFactor == 0 {
+		cfg.OrchestratorService.Vectordb.ReplicationFactor = 1
+	}
+	if cfg.OrchestratorService.Vectordb.TextVectorSize == 0 {
+		cfg.OrchestratorService.Vectordb.TextVectorSize = 768
+	}
+	if cfg.OrchestratorService.Vectordb.ImageVectorSize == 0 {
+		cfg.OrchestratorService.Vectordb.ImageVectorSize = 768
+	}
+	if strings.TrimSpace(cfg.OrchestratorService.Vectordb.TextVectorDistance) == "" {
+		cfg.OrchestratorService.Vectordb.TextVectorDistance = "cosine"
+	}
+	if strings.TrimSpace(cfg.OrchestratorService.Vectordb.ImageVectorDistance) == "" {
+		cfg.OrchestratorService.Vectordb.ImageVectorDistance = "cosine"
 	}
 }
 
@@ -214,3 +252,32 @@ func normalizeBrokers(raw []string) []string {
 }
 
 const defaultPromptAnswer = "Dua tren context duoc cung cap, hay tra loi cau hoi mot cach ngan gon, chinh xac va bang tieng Viet."
+
+var promptPreprocessingCandidates = []string{
+	"./data/prompt/preprocessing.txt",
+	"../../data/prompt/preprocessing.txt",
+}
+
+var promptPostprocessingCandidates = []string{
+	"./data/prompt/postprocessing.txt",
+	"../../data/prompt/postprocessing.txt",
+}
+
+func loadPromptFromCandidates(candidates []string) (string, string, error) {
+	for _, candidate := range candidates {
+		resolved := filepath.Clean(strings.TrimSpace(candidate))
+		if resolved == "" {
+			continue
+		}
+		raw, err := os.ReadFile(resolved)
+		if err != nil {
+			continue
+		}
+		prompt := strings.TrimSpace(string(raw))
+		if prompt == "" {
+			return "", resolved, fmt.Errorf("prompt file is empty: %s", resolved)
+		}
+		return prompt, resolved, nil
+	}
+	return "", "", fmt.Errorf("prompt file not found in candidates: %s", strings.Join(candidates, ", "))
+}

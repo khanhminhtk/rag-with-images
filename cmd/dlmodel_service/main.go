@@ -21,6 +21,7 @@ import (
 	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
 	kafkaAdapter "rag_imagetotext_texttoimage/internal/adapter/kafka"
 	"rag_imagetotext_texttoimage/internal/application/ports"
+	"rag_imagetotext_texttoimage/internal/bootstrap"
 	"rag_imagetotext_texttoimage/internal/infra/cgo"
 	infraKafka "rag_imagetotext_texttoimage/internal/infra/kafka"
 	"rag_imagetotext_texttoimage/internal/util"
@@ -28,21 +29,21 @@ import (
 )
 
 func main() {
-	configLoader := util.NewConfigLoader("./config/.env", "./config/config.yaml")
-	cfg, err := configLoader.Load()
+	cfg, appLogger, err := bootstrap.BuildConfigAndLogger(bootstrap.CmdRuntimeOptions{
+		Namespace: "dlmodel_service",
+		EnvPath:   "./config/.env",
+		YamlPath:  "./config/config.yaml",
+		LogLevel:  slog.LevelInfo,
+		ResolveLogPath: func(_ *util.Config) string {
+			return "logs/embedding_service.log"
+		},
+	})
 	if err != nil {
-		util.Fatalf("failed to load configuration: %v", err)
+		util.Fatalf("failed to bootstrap embedding runtime: %v", err)
 	}
 
-	logPath := strings.TrimSpace(cfg.EmbeddingService.LogPath)
-	if logPath == "" || !filepath.IsAbs(logPath) {
-		logPath = filepath.Join("cmd", "dlmodel_service", "logs", "embedding_service.log")
-	}
+	logPath := "logs/embedding_service.log"
 
-	appLogger, err := util.NewFileLogger(logPath, slog.LevelInfo)
-	if err != nil {
-		util.Fatalf("failed to initialize logger: %v", err)
-	}
 	defer appLogger.Close()
 	appLogger.Info(
 		"embedding service bootstrap started",

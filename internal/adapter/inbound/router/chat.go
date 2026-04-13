@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/google/uuid"
 
 	"rag_imagetotext_texttoimage/internal/application/dtos/orchestrator"
 	"rag_imagetotext_texttoimage/internal/application/use_cases/orchestrator/chat"
@@ -49,10 +48,17 @@ func (H *HTTPHandlerChat) HTTPHandlerChatExecute(
 
 	req.SessionID = strings.TrimSpace(req.SessionID)
 	if req.SessionID == "" {
-		req.SessionID = uuid.NewString()
+		util.WriteJSON(w, http.StatusBadRequest, orchestrator.ErrorResponse{Error: "SessionID is required"})
+		return
 	}
 
-	answer, err := H.chatbot.Execute(r.Context(), req.Query, strings.TrimSpace(req.ImagePath), req.SessionID)
+	req.Uuid = strings.TrimSpace(req.Uuid)
+	if req.Uuid == "" {
+		util.WriteJSON(w, http.StatusBadRequest, orchestrator.ErrorResponse{Error: "Uuid is required"})
+		return
+	}
+
+	answer, err := H.chatbot.Execute(r.Context(), req.Query, strings.TrimSpace(req.ImagePath), req.SessionID, req.Uuid)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -61,6 +67,9 @@ func (H *HTTPHandlerChat) HTTPHandlerChatExecute(
 		util.WriteJSON(w, status, orchestrator.ErrorResponse{Error: err.Error()})
 		return
 	}
+
+	fmt.Printf("TEST: %v\n", answer)
+
 	util.WriteJSON(w, http.StatusOK, orchestrator.ChatResponse{
 		Answer:    answer,
 		SessionID: req.SessionID,

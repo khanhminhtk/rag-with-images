@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"rag_imagetotext_texttoimage/internal/application/dtos"
 )
 
@@ -30,14 +32,6 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 		return result, err
 	}
 
-	uuid := strings.TrimSpace(req.UUID)
-	if uuid == "" {
-		err := errors.New("uuid is required")
-		uc.logger.Error("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest missing uuid", err)
-		return result, err
-	}
-	result.UUID = uuid
-
 	urlDownload := strings.TrimSpace(req.URLDownload)
 	if urlDownload == "" {
 		err := errors.New("url_download is required")
@@ -45,19 +39,23 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 		return result, err
 	}
 
-	collectionName := strings.TrimSpace(req.CollectionName)
-	if collectionName == "" {
-		err := errors.New("collection_name is required")
-		uc.logger.Error("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest missing collection_name", err)
-		return result, err
+	reqUUID := strings.TrimSpace(req.UUID)
+	if reqUUID == "" {
+		reqUUID = uuid.NewString()
+		uc.logger.Info(
+			"internal.application.use_cases.orchestrator.training_file.ProcessAndIngest generated fallback uuid",
+			"uuid", reqUUID,
+		)
 	}
+	trainingUUID := reqUUID
+	collectionName := trainingUUID
+	result.UUID = trainingUUID
 
-	effectiveBatchSize := uc.resolveTrainingBatchSize(req.BatchSize)
+	effectiveBatchSize := uc.resolveTrainingBatchSize(0)
 	markerDevMode := uc.Config.FileTraining.MarkerDevMode
 	uc.logger.Info(
 		"internal.application.use_cases.orchestrator.training_file.ProcessAndIngest batch config resolved",
-		"uuid", uuid,
-		"request_batch_size", req.BatchSize,
+		"uuid", trainingUUID,
 		"config_batch_size", uc.Config.FileTraining.BatchSize,
 		"effective_batch_size", effectiveBatchSize,
 		"marker_dev_mode", markerDevMode,
@@ -70,21 +68,9 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 	pipelineCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	downloadRoot := strings.TrimSpace(req.DownloadRootDir)
-	if downloadRoot == "" {
-		downloadRoot = "data/download"
-	}
-	processRoot := strings.TrimSpace(req.ProcessRootDir)
-	if processRoot == "" {
-		processRoot = "data/process"
-	}
-	uploadRoot := strings.TrimSpace(req.UploadRootDir)
-	if uploadRoot == "" {
-		uploadRoot = "data/upload"
-	}
-	downloadDir := filepath.Join(downloadRoot, uuid)
-	processDir := filepath.Join(processRoot, uuid)
-	uploadDir := filepath.Join(uploadRoot, uuid)
+	downloadDir := filepath.Join("data", "download", trainingUUID)
+	processDir := filepath.Join("data", "processed", trainingUUID)
+	uploadDir := filepath.Join("data", "upload", trainingUUID)
 	result.ProcessDir = processDir
 
 	if err := os.MkdirAll(downloadDir, 0755); err != nil {
@@ -100,26 +86,26 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 	stepStartedAt := time.Now()
 	downloadRes, err := uc.Download(pipelineCtx, &dtos.DownFileTrainingRequest{
 		UrlDownFile: urlDownload,
-		Uuid:        uuid,
+		Uuid:        trainingUUID,
 		PathSave:    downloadDir,
 	})
 	if err != nil {
 		return result, fmt.Errorf("step download failed: %w", err)
 	}
 	result.DownloadPath = downloadRes.FilePath
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "download", "uuid", uuid, "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "download", "uuid", trainingUUID, "latency_ms", time.Since(stepStartedAt).Milliseconds())
 
 	stepStartedAt = time.Now()
 	_, err = uc.AnalysisFile(pipelineCtx, &dtos.AnalysisFileRequest{
 		FilePath: downloadRes.FilePath,
 		DistDir:  processDir,
-		Uuid:     uuid,
+		Uuid:     trainingUUID,
 		Dev:      markerDevMode,
 	})
 	if err != nil {
 		return result, fmt.Errorf("step marker analysis failed: %w", err)
 	}
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "analysis", "uuid", uuid, "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "analysis", "uuid", trainingUUID, "latency_ms", time.Since(stepStartedAt).Milliseconds())
 
 	markdownPath, _, artifactPaths, err := discoverProcessedArtifacts(processDir)
 	if err != nil {
@@ -133,36 +119,88 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 		return result, fmt.Errorf("step minio upload failed: %w", err)
 	}
 	result.UploadedFiles = uploaded
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "upload_minio", "uuid", uuid, "uploaded_files", uploaded, "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "upload_minio", "uuid", trainingUUID, "uploaded_files", uploaded, "latency_ms", time.Since(stepStartedAt).Milliseconds())
 
 	stepStartedAt = time.Now()
 	mdContent, err := uc.ReadMarkdownFile(pipelineCtx, markdownPath)
 	if err != nil {
 		return result, fmt.Errorf("step read markdown failed: %w", err)
 	}
-	chunks := parseLineBasedChunks(mdContent)
+	chunkingCfg := uc.resolveChunkingConfig()
+	chunks, parseStats := parseLineBasedChunks(mdContent, chunkingCfg)
 	if len(chunks) == 0 {
 		return result, errors.New("no chunk extracted from markdown")
 	}
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "parse_markdown", "uuid", uuid, "chunk_count", len(chunks), "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	shortChunkCount := countShortChunks(chunks, chunkingCfg)
+	shortChunkPct := percentInt(shortChunkCount, len(chunks))
+	headerDropPct := percentInt(parseStats.DroppedHeader, parseStats.RawSentenceCount)
+	numericDropPct := percentInt(parseStats.DroppedNumeric, parseStats.RawSentenceCount)
+	noiseDropPct := percentInt(parseStats.DroppedNoise, parseStats.RawSentenceCount)
+	uc.logger.Info(
+		"internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed",
+		"step", "parse_markdown",
+		"uuid", trainingUUID,
+		"raw_chunk_count", parseStats.RawSentenceCount,
+		"chunk_count", len(chunks),
+		"dropped_header", parseStats.DroppedHeader,
+		"dropped_header_pct", fmt.Sprintf("%.2f", headerDropPct),
+		"dropped_numeric", parseStats.DroppedNumeric,
+		"dropped_numeric_pct", fmt.Sprintf("%.2f", numericDropPct),
+		"dropped_noise", parseStats.DroppedNoise,
+		"dropped_noise_pct", fmt.Sprintf("%.2f", noiseDropPct),
+		"merged_short_sentences", parseStats.MergedShort,
+		"short_chunk_pct", fmt.Sprintf("%.2f", shortChunkPct),
+		"latency_ms", time.Since(stepStartedAt).Milliseconds(),
+	)
 
 	stepStartedAt = time.Now()
 	texts := make([]string, 0, len(chunks))
 	for _, chunk := range chunks {
 		texts = append(texts, chunk.Text)
 	}
-	textVectors, err := uc.embedTextAsyncByKafka(pipelineCtx, uuid, texts, effectiveBatchSize)
+	textVectors, err := uc.embedTextAsyncByKafka(pipelineCtx, trainingUUID, texts, effectiveBatchSize)
 	if err != nil {
 		return result, fmt.Errorf("step embed text failed: %w", err)
 	}
-	if err := uc.DoSemanticChunking(pipelineCtx, textVectors); err != nil {
+	filteredChunks, filteredTextVectors, skippedZeroNorm, skippedDimMismatch, err := filterValidChunksAndEmbeddings(chunks, textVectors)
+	if err != nil {
+		return result, fmt.Errorf("validate embeddings failed: %w", err)
+	}
+	if skippedZeroNorm > 0 || skippedDimMismatch > 0 {
+		uc.logger.Info(
+			"internal.application.use_cases.orchestrator.training_file.ProcessAndIngest invalid embeddings were filtered",
+			"uuid", trainingUUID,
+			"skipped_zero_norm", skippedZeroNorm,
+			"skipped_dimension_mismatch", skippedDimMismatch,
+			"remaining_chunks", len(filteredChunks),
+		)
+	}
+
+	if err := uc.DoSemanticChunking(pipelineCtx, filteredTextVectors, chunkingCfg.SemanticSimThreshold); err != nil {
 		return result, fmt.Errorf("step semantic chunking failed: %w", err)
 	}
-	mergedChunks, mergedVectors, err := mergeChunksBySemantic(chunks, textVectors, defaultSemanticThresh)
+	mergedChunks, mergedVectors, err := mergeChunksBySemantic(filteredChunks, filteredTextVectors, chunkingCfg)
 	if err != nil {
 		return result, fmt.Errorf("merge semantic chunks failed: %w", err)
 	}
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "embedding_semantic", "uuid", uuid, "original_chunks", len(chunks), "merged_chunks", len(mergedChunks), "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	finalShortChunkCount := countShortChunks(mergedChunks, chunkingCfg)
+	finalShortChunkPct := percentInt(finalShortChunkCount, len(mergedChunks))
+	p50Tokens, p95Tokens, maxTokens := chunkTokenDistribution(mergedChunks)
+	headSamples, tailSamples := sampleChunkTexts(mergedChunks, 3, 200)
+	uc.logger.Info(
+		"internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed",
+		"step", "embedding_semantic",
+		"uuid", trainingUUID,
+		"original_chunks", len(chunks),
+		"final_chunk_count", len(mergedChunks),
+		"short_chunk_pct", fmt.Sprintf("%.2f", finalShortChunkPct),
+		"token_p50", p50Tokens,
+		"token_p95", p95Tokens,
+		"token_max", maxTokens,
+		"head_samples", strings.Join(headSamples, " || "),
+		"tail_samples", strings.Join(tailSamples, " || "),
+		"latency_ms", time.Since(stepStartedAt).Milliseconds(),
+	)
 
 	stepStartedAt = time.Now()
 	imageVectorByChunk := map[int][]float32{}
@@ -174,20 +212,20 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 		if absPath == "" {
 			continue
 		}
-		vec, imgErr := uc.embedSingleImageAsyncByKafka(pipelineCtx, uuid, absPath)
+		vec, imgErr := uc.embedSingleImageAsyncByKafka(pipelineCtx, trainingUUID, absPath)
 		if imgErr != nil {
 			uc.logger.Error("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest image embedding failed", imgErr, "chunk_index", i, "image_path", absPath)
 			continue
 		}
 		imageVectorByChunk[i] = vec
 	}
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "embedding_image_optional", "uuid", uuid, "image_vector_count", len(imageVectorByChunk), "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "embedding_image_optional", "uuid", trainingUUID, "image_vector_count", len(imageVectorByChunk), "latency_ms", time.Since(stepStartedAt).Milliseconds())
 
 	stepStartedAt = time.Now()
 	points := make([]dtos.UploadVectorDBPoint, 0, len(mergedChunks))
 	for i := range mergedChunks {
 		payload := map[string]string{
-			"doc_id":      uuid,
+			"doc_id":      trainingUUID,
 			"unit_type":   "semantic_chunk",
 			"text":        mergedChunks[i].Text,
 			"chunk_index": strconv.Itoa(i),
@@ -226,10 +264,14 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 	}
 	result.InsertedPoints = uploadRes.InsertedPoints
 	result.SkippedPoints = uploadRes.SkippedPoints
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "upload_vectordb", "uuid", uuid, "inserted_points", uploadRes.InsertedPoints, "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "upload_vectordb", "uuid", trainingUUID, "inserted_points", uploadRes.InsertedPoints, "latency_ms", time.Since(stepStartedAt).Milliseconds())
 
 	stepStartedAt = time.Now()
-	verified, err := uc.verifyVectorDBByDocID(pipelineCtx, collectionName, uuid)
+	probeText := ""
+	if len(mergedChunks) > 0 {
+		probeText = strings.TrimSpace(mergedChunks[0].Text)
+	}
+	verified, err := uc.verifyVectorDBByDocID(pipelineCtx, collectionName, trainingUUID, probeText)
 	if err != nil {
 		return result, fmt.Errorf("step verify vectordb failed: %w", err)
 	}
@@ -237,7 +279,7 @@ func (uc *trainingFileUseCase) ProcessAndIngest(ctx context.Context, req *dtos.P
 	if !verified {
 		return result, errors.New("vectordb verification failed: no data found for doc_id")
 	}
-	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "verify_vectordb", "uuid", uuid, "verified", verified, "latency_ms", time.Since(stepStartedAt).Milliseconds())
+	uc.logger.Info("internal.application.use_cases.orchestrator.training_file.ProcessAndIngest step completed", "step", "verify_vectordb", "uuid", trainingUUID, "verified", verified, "latency_ms", time.Since(stepStartedAt).Milliseconds())
 
 	result.Success = true
 	result.LatencyMs = time.Since(startedAt).Milliseconds()

@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"rag_imagetotext_texttoimage/internal/application/dtos"
 	"rag_imagetotext_texttoimage/internal/application/ports"
 	useCaseMinio "rag_imagetotext_texttoimage/internal/application/use_cases/minio"
+	"rag_imagetotext_texttoimage/internal/bootstrap"
 	infraKafka "rag_imagetotext_texttoimage/internal/infra/kafka"
 	infraMinio "rag_imagetotext_texttoimage/internal/infra/minio"
 	"rag_imagetotext_texttoimage/internal/util"
@@ -28,16 +28,18 @@ import (
 )
 
 func main() {
-	configLoader := util.NewConfigLoader("./config/.env", "./config/config.yaml")
-	cfg, err := configLoader.Load()
+	logPath := "logs/minio_service.log"
+	cfg, appLogger, err := bootstrap.BuildConfigAndLogger(bootstrap.CmdRuntimeOptions{
+		Namespace: "minio_service",
+		EnvPath:   "./config/.env",
+		YamlPath:  "./config/config.yaml",
+		LogLevel:  slog.LevelInfo,
+		ResolveLogPath: func(_ *util.Config) string {
+			return logPath
+		},
+	})
 	if err != nil {
-		util.Fatalf("failed to load config: %v", err)
-	}
-
-	logPath := filepath.Join("cmd", "minio_service", "logs", "minio_service.log")
-	appLogger, err := util.NewFileLogger(logPath, slog.LevelInfo)
-	if err != nil {
-		util.Fatalf("failed to create logger: %v", err)
+		util.Fatalf("failed to bootstrap minio runtime: %v", err)
 	}
 	defer appLogger.Close()
 	appLogger.Info("minio service bootstrap started", "grpc_port", cfg.MinIOService.GRPCPort, "endpoint", cfg.MinIOService.Endpoint, "log_path", logPath)

@@ -7,12 +7,7 @@ type CollectionVectorConfig struct {
 }
 
 type CreateCollectionRequest struct {
-	Name              string                   `json:"name"`
-	Vectors           []CollectionVectorConfig `json:"vectors"`
-	Shards            uint32                   `json:"shards,omitempty"`
-	ReplicationFactor uint32                   `json:"replication_factor,omitempty"`
-	OnDiskPayload     bool                     `json:"on_disk_payload,omitempty"`
-	OptimizersMemmap  bool                     `json:"optimizers_memmap,omitempty"`
+	Name string `json:"name"`
 }
 
 type CreateCollectionResponse struct {

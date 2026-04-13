@@ -148,6 +148,9 @@ func (c *Consumer) Consume(ctx context.Context, topic string, groupID string, ha
 		}
 
 		if err := reader.CommitMessages(ctx, msg); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil
+			}
 			wrappedErr := fmt.Errorf("commit message: %w", err)
 			if c.appLogger != nil {
 				c.appLogger.Error("consume commit failed", wrappedErr, "topic", topic, "group_id", groupID, "offset", msg.Offset)

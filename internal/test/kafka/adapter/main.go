@@ -22,7 +22,7 @@ type DemoEvent struct {
 
 func main() {
 	appLogger, err := util.NewFileLogger(
-		"/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/kafka_adapter_demo.log",
+		"logs/kafka_adapter_demo.log",
 		slog.LevelInfo,
 	)
 	if err != nil {

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -15,6 +17,7 @@ import (
 	"rag_imagetotext_texttoimage/internal/application/dtos"
 	"rag_imagetotext_texttoimage/internal/application/ports"
 	trainingfile "rag_imagetotext_texttoimage/internal/application/use_cases/orchestrator/training_file"
+	"rag_imagetotext_texttoimage/internal/bootstrap"
 	infraKafka "rag_imagetotext_texttoimage/internal/infra/kafka"
 	"rag_imagetotext_texttoimage/internal/util"
 )
@@ -25,21 +28,20 @@ type processFileKafkaRequest struct {
 }
 
 func main() {
-	configLoader := util.NewConfigLoader("./config/.env", "./config/config.yaml")
-	cfg, err := configLoader.Load()
+	cfg, appLogger, err := bootstrap.BuildConfigAndLogger(bootstrap.CmdRuntimeOptions{
+		Namespace: "processfile_service",
+		EnvPath:   "./config/.env",
+		YamlPath:  "./config/config.yaml",
+		LogLevel:  slog.LevelInfo,
+		ResolveLogPath: func(_ *util.Config) string {
+			return "logs/processfile_service.log"
+		},
+	})
 	if err != nil {
-		util.Fatalf("failed to load config: %v", err)
-	}
-
-	logPath := strings.TrimSpace(cfg.FileTraining.LogPath)
-	if logPath == "" {
-		logPath = "logs/processfile_service.log"
-	}
-	appLogger, err := util.NewFileLogger(logPath, slog.LevelInfo)
-	if err != nil {
-		util.Fatalf("failed to create logger: %v", err)
+		util.Fatalf("failed to bootstrap processfile runtime: %v", err)
 	}
 	defer appLogger.Close()
+	logPath := "logs/processfile_service.log"
 	appLogger.Info("process file service bootstrap started", "log_path", logPath)
 	appLogger.Info(
 		"process file runtime config",
@@ -102,27 +104,31 @@ func main() {
 
 	consumerErrCh := consumerAdapter.Start(rootCtx, topics.ProcessFileRequest, topics.ProcessFileGroup, func(ctx context.Context, msg ports.ConsumeMessage) error {
 		startedAt := time.Now()
+		correlationID := resolveCorrelationID("", msg)
 
 		var req processFileKafkaRequest
-		if err := json.Unmarshal(msg.Message.Value, &req); err != nil {
-			appLogger.Error("invalid process file request payload", err, "topic", msg.Topic, "offset", msg.Offset)
+		if err := decodeProcessFileKafkaRequest(msg.Message.Value, &req); err != nil {
+			appLogger.Error("invalid process file request payload", err, "topic", msg.Topic, "offset", msg.Offset, "correlation_id", correlationID)
+			if topics.ProcessFileResult != "" {
+				publishErr := producerAdapter.PublishJSON(ctx, topics.ProcessFileResult, []byte(correlationID), map[string]any{
+					"success":         false,
+					"message":         "invalid request payload: " + err.Error(),
+					"correlation_id":  correlationID,
+					"uuid":            "",
+					"collection_name": "",
+					"at":              time.Now().UTC().Format(time.RFC3339),
+				}, map[string]string{
+					"source_topic":   topics.ProcessFileRequest,
+					"correlation_id": correlationID,
+				})
+				if publishErr != nil {
+					appLogger.Error("publish invalid process file request result failed", publishErr, "result_topic", topics.ProcessFileResult, "correlation_id", correlationID)
+				}
+			}
 			return nil
 		}
 
-		if strings.TrimSpace(req.DownloadRootDir) == "" && strings.TrimSpace(cfg.FileTraining.PathDownload) != "" {
-			req.DownloadRootDir = strings.TrimSpace(cfg.FileTraining.PathDownload)
-		}
-
-		correlationID := strings.TrimSpace(req.CorrelationID)
-		if correlationID == "" {
-			correlationID = strings.TrimSpace(msg.Message.Headers["correlation_id"])
-		}
-		if correlationID == "" {
-			correlationID = strings.TrimSpace(string(msg.Message.Key))
-		}
-		if correlationID == "" {
-			correlationID = fmt.Sprintf("process-file-%d", time.Now().UnixNano())
-		}
+		correlationID = resolveCorrelationID(req.CorrelationID, msg)
 
 		processResult, processErr := trainingFileUseCase.ProcessAndIngest(ctx, &req.ProcessAndIngestRequest)
 		success := processErr == nil && processResult.Success
@@ -138,7 +144,7 @@ func main() {
 				"message":         message,
 				"correlation_id":  correlationID,
 				"uuid":            req.UUID,
-				"collection_name": req.CollectionName,
+				"collection_name": req.UUID,
 				"result":          processResult,
 				"at":              time.Now().UTC().Format(time.RFC3339),
 			}, map[string]string{
@@ -193,4 +199,30 @@ func waitConsumerStopped(errCh <-chan error, logger util.Logger, timeout time.Du
 	case <-timer.C:
 		logger.Info("consumer stop wait timeout", "timeout_ms", timeout.Milliseconds())
 	}
+}
+
+func decodeProcessFileKafkaRequest(raw []byte, out *processFileKafkaRequest) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(out); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return fmt.Errorf("invalid trailing payload")
+	}
+	return nil
+}
+
+func resolveCorrelationID(requestCorrelationID string, msg ports.ConsumeMessage) string {
+	correlationID := strings.TrimSpace(requestCorrelationID)
+	if correlationID == "" {
+		correlationID = strings.TrimSpace(msg.Message.Headers["correlation_id"])
+	}
+	if correlationID == "" {
+		correlationID = strings.TrimSpace(string(msg.Message.Key))
+	}
+	if correlationID == "" {
+		correlationID = fmt.Sprintf("process-file-%d", time.Now().UnixNano())
+	}
+	return correlationID
 }
