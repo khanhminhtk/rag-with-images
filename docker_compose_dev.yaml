@@ -1,22 +1,22 @@
 services:
   qdrant:
-    image: qdrant/qdrant:v1.17.1-unprivileged
-    container_name: qdrant_database
-    restart: unless-stopped
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:v1.17.1-unprivileged}
+    container_name: ${QDRANT_CONTAINER_NAME:-qdrant_database}
+    restart: ${QDRANT_RESTART:-unless-stopped}
     environment:
-      QDRANT__SERVICE__GRPC_PORT: "6334"
-      QDRANT__SERVICE__HTTP_PORT: "6333"
-    user: "1000:1000"
+      QDRANT__SERVICE__GRPC_PORT: "${QDRANT_GRPC_PORT:-6334}"
+      QDRANT__SERVICE__HTTP_PORT: "${QDRANT_HTTP_PORT:-6333}"
+    user: "${QDRANT_USER:-1000:1000}"
     volumes:
-      - ./data/qdrant_storage:/qdrant/storage:z
+      - ${QDRANT_STORAGE_DIR:-./data/qdrant_storage}:/qdrant/storage:z
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
 
   minio:
-    image: minio/minio:latest
-    container_name: minio
-    restart: unless-stopped
+    image: ${MINIO_IMAGE:-minio/minio:latest}
+    container_name: ${MINIO_CONTAINER_NAME:-minio}
+    restart: ${MINIO_RESTART:-unless-stopped}
     env_file:
       - ./config/.env
     ports:
@@ -29,20 +29,20 @@ services:
       MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost:9001}
       MINIO_SERVER_URL: ${MINIO_SERVER_URL:-http://localhost:9000}
     volumes:
-      - ./data/minio:/data
+      - ${MINIO_DATA_DIR:-./data/minio}:/data
     command: server /data --console-address ":9001"
 
   kafka:
-    image: bitnamilegacy/kafka:latest
-    container_name: kafka
-    restart: unless-stopped
-    user: "0:0"
+    image: ${KAFKA_IMAGE:-bitnamilegacy/kafka:latest}
+    container_name: ${KAFKA_CONTAINER_NAME:-kafka}
+    restart: ${KAFKA_RESTART:-unless-stopped}
+    user: "${KAFKA_USER:-0:0}"
     env_file:
       - ./config/.env
     ports:
       - "${KAFKA_EXTERNAL_PORT:-9092}:9092"
     volumes:
-      - ./data/kafka:/bitnami:z
+      - ${KAFKA_DATA_DIR:-./data/kafka}:/bitnami:z
     environment:
       KAFKA_CFG_NODE_ID: ${KAFKA_CFG_NODE_ID:-0}
       KAFKA_CFG_PROCESS_ROLES: ${KAFKA_CFG_PROCESS_ROLES:-controller,broker}
@@ -52,3 +52,60 @@ services:
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: ${KAFKA_CFG_CONTROLLER_LISTENER_NAMES:-CONTROLLER}
       KAFKA_CFG_INTER_BROKER_LISTENER_NAME: ${KAFKA_CFG_INTER_BROKER_LISTENER_NAME:-PLAINTEXT}
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CFG_CONTROLLER_QUORUM_VOTERS:-0@kafka:9093}
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    container_name: ${GRAFANA_CONTAINER_NAME:-monitoring_grafana}
+    restart: ${GRAFANA_RESTART:-unless-stopped}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_DATA: /tmp/grafana_data 
+    volumes:
+      - ${GRAFANA_DATA_VOLUME:-grafana-data}:/tmp/grafana_data
+      - ${GRAFANA_PROVISIONING_DIR:-./monitoring/grafana/provisioning}:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    networks:
+      - monitoring
+
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:2.9.4}
+    container_name: ${LOKI_CONTAINER_NAME:-monitoring_loki}
+    restart: ${LOKI_RESTART:-unless-stopped}
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    ports:
+      - "${LOKI_BIND_HOST:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ${LOKI_CONFIG_FILE:-./monitoring/loki/loki-config.yml}:/etc/loki/loki-config.yml:ro
+      - ${LOKI_DATA_VOLUME:-loki-data}:/tmp/loki
+      - ${LOKI_WAL_VOLUME:-loki-wal}:/tmp/loki/wal
+    networks:
+      - monitoring
+
+  promtail:
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:2.9.4}
+    container_name: ${PROMTAIL_CONTAINER_NAME:-monitoring_promtail}
+    restart: ${PROMTAIL_RESTART:-unless-stopped}
+    user: "${PROMTAIL_USER:-root}"
+    command: ["-config.file=/etc/promtail/promtail-config.yml"]
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+    volumes:
+      - ${PROMTAIL_CONFIG_FILE:-./monitoring/promtail/promtail-config.yml}:/etc/promtail/promtail-config.yml:ro
+      - ${CHATBOT_LOG_DIR:-./logs}:/var/log/chatbot:ro
+      - ${PROMTAIL_STATE_DIR:-/tmp/promtail}:/tmp/promtail 
+    depends_on:
+      - loki
+    networks:
+      - monitoring
+
+volumes:
+  grafana-data:
+  loki-data:
+  loki-wal:
