@@ -7,6 +7,18 @@ build:
     stage: build
     script: 
         - cp ~/envs/mrag/.env ./config/
-        - ls -a config/
+        - cp -r ~/projects/mrag/model third_party/onnx_c++/
+        - mkdir -p deploy/{bin,logs,third_party/onnx_c++}
+        - cp -r config deploy/
+        - cp -r third_party/onnx_c++/config/ deploy/third_party/onnx_c++/
+        - cmake -S ./third_party/onnx_c++ -B ./third_party/onnx_c++/build-debug -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4
+        - cmake --build ./third_party/onnx_c++/build -j"$(nproc)"
+        - go build -o deploy/bin/llm_service cmd/llm_service/main.go
+        - go build -o deploy/bin/dlmodel_service cmd/dlmodel_service/main.go
+        - go build -o deploy/bin/minio_service cmd/minio_service/main.go
+        - go build -o deploy/bin/orchestrator_service cmd/orchestrator_service/main.go
+        - go build -o deploy/bin/processfile_service cmd/processfile_service/main.go
+        - go build -o deploy/bin/rag_service cmd/rag_service/main.go
+        - ls -a deploy/bin/
     tags:
         - gpu_1650ti
