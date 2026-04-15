@@ -68,6 +68,7 @@ orchestrator_service:
     log_path: "${ORCHESTRATOR_SERVICE_LOG_PATH}"
     session_ttl_seconds: 1800
     memory_history_top_k: ${ORCHESTRATOR_SERVICE_MEMORY_HISTORY_TOP_K}
+    rag_retrieval_top_k: ${ORCHESTRATOR_RAG_RETRIEVAL_TOP_K}
     vectordb:
         shards: ${ORCHESTRATOR_VECTORDB_SHARDS}
         replication_factor: ${ORCHESTRATOR_VECTORDB_REPLICATION_FACTOR}
