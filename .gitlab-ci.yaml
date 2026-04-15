@@ -1,0 +1,13 @@
+stages:
+    - build
+    - deploy
+    - checklog
+
+build:
+    stage: build
+    script: 
+        - whoami
+        - pwd
+        - ls
+    tags:
+        - gpu_1650ti
