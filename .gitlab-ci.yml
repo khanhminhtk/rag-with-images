@@ -11,7 +11,7 @@ build:
         - mkdir -p deploy/{bin,logs,third_party/onnx_c++}
         - cp -r config deploy/
         - cp -r third_party/onnx_c++/config/ deploy/third_party/onnx_c++/
-        - cmake -S ./third_party/onnx_c++ -B ./third_party/onnx_c++/build-debug -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4
+        - cmake -S ./third_party/onnx_c++ -B ./third_party/onnx_c++/build -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4
         - cmake --build ./third_party/onnx_c++/build -j"$(nproc)"
         - go build -o deploy/bin/llm_service cmd/llm_service/main.go
         - go build -o deploy/bin/dlmodel_service cmd/dlmodel_service/main.go
