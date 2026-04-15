@@ -9,7 +9,6 @@ import (
 	pb "rag_imagetotext_texttoimage/proto"
 )
 
-
 func runEmbed[Resp any](
 	wg *sync.WaitGroup,
 	errCh chan<- error,
@@ -31,7 +30,8 @@ func (c *ChatbotHandler) fullEmbed(
 	executeQueries ExecuteQueries,
 ) (embeddingResults, error) {
 	var results embeddingResults
-	errCh := make(chan error, 1)
+	var resultsMu sync.Mutex
+	errCh := make(chan error, 3)
 	defer wg.Done()
 
 	var embedWg sync.WaitGroup
@@ -48,6 +48,8 @@ func (c *ChatbotHandler) fullEmbed(
 			)
 		},
 		func(resp *pb.EmbedTextResponse) {
+			resultsMu.Lock()
+			defer resultsMu.Unlock()
 			results.CurrentText = resp
 		},
 	)
@@ -56,7 +58,7 @@ func (c *ChatbotHandler) fullEmbed(
 	go runEmbed(
 		&embedWg,
 		errCh,
-		func () (*pb.EmbedTextResponse, error) {
+		func() (*pb.EmbedTextResponse, error) {
 			return c.ModelDLServiceClient.EmbedText(
 				ctx,
 				&pb.EmbedTextRequest{
@@ -65,11 +67,12 @@ func (c *ChatbotHandler) fullEmbed(
 			)
 		},
 		func(resp *pb.EmbedTextResponse) {
+			resultsMu.Lock()
+			defer resultsMu.Unlock()
 			results.NewText = resp
 		},
 	)
 
-	
 	if executeQueries.MultimodalQuery != nil && strings.TrimSpace(executeQueries.MultimodalQuery.ImageDense) != "" {
 		embedWg.Add(1)
 		pixels, width, height, channels, imgErr := util.LoadImagePixels(executeQueries.MultimodalQuery.ImageDense)
@@ -91,6 +94,8 @@ func (c *ChatbotHandler) fullEmbed(
 				)
 			},
 			func(resp *pb.EmbedImageResponse) {
+				resultsMu.Lock()
+				defer resultsMu.Unlock()
 				results.Image = resp
 			},
 		)
@@ -107,4 +112,3 @@ func (c *ChatbotHandler) fullEmbed(
 
 	return results, nil
 }
-

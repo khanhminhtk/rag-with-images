@@ -22,11 +22,9 @@ func NewHTTPHandlerTrainingFile(useCase ports.TrainingFileUseCase) *HTTPHandlerT
 }
 
 func (h *HTTPHandlerTrainingFile) HTTPHandlerProcessAndIngestExecute(
-	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	_ = ctx
 	if h == nil || h.useCase == nil {
 		util.WriteJSON(w, http.StatusInternalServerError, orchestratordto.ErrorResponse{Error: "training file handler is not configured"})
 		return

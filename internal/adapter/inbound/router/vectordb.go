@@ -27,11 +27,9 @@ func NewHTTPHandlerVectordb(vectordb *orchestratoruc.VectordbHandler, vectordbSe
 }
 
 func (h *HTTPHandlerVectordb) HTTPHandlerCreateCollectionExecute(
-	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	_ = ctx
 	if h == nil || h.vectordb == nil {
 		util.WriteJSON(w, http.StatusInternalServerError, orchestratordto.ErrorResponse{Error: "vectordb handler is not configured"})
 		return
@@ -83,11 +81,9 @@ func (h *HTTPHandlerVectordb) HTTPHandlerCreateCollectionExecute(
 }
 
 func (h *HTTPHandlerVectordb) HTTPHandlerDeleteCollectionExecute(
-	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	_ = ctx
 	if h == nil || h.vectordb == nil {
 		util.WriteJSON(w, http.StatusInternalServerError, orchestratordto.ErrorResponse{Error: "vectordb handler is not configured"})
 		return
@@ -119,11 +115,9 @@ func (h *HTTPHandlerVectordb) HTTPHandlerDeleteCollectionExecute(
 }
 
 func (h *HTTPHandlerVectordb) HTTPHandlerDeletePointFilterExecute(
-	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	_ = ctx
 	if h == nil || h.vectordb == nil {
 		util.WriteJSON(w, http.StatusInternalServerError, orchestratordto.ErrorResponse{Error: "vectordb handler is not configured"})
 		return

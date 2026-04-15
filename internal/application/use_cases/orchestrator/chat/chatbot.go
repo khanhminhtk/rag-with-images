@@ -35,7 +35,7 @@ func NewChatbotHandler(
 	PromptPostprocessing string,
 	PromptAnswer string,
 ) *ChatbotHandler {
-	return &ChatbotHandler{
+	handler := &ChatbotHandler{
 		Session:              session,
 		appLogger:            appLogger,
 		Config:               config,
@@ -46,6 +46,12 @@ func NewChatbotHandler(
 		PromptPostprocessing: PromptPostprocessing,
 		PromptAnswer:         PromptAnswer,
 	}
+	if session != nil {
+		session.SetOnSessionReleased(func(sessionID string) {
+			cleanupSessionTmpDir(sessionID, appLogger)
+		})
+	}
+	return handler
 }
 
 type QueryPayload struct {
@@ -101,6 +107,10 @@ func (c *ChatbotHandler) Execute(
 			return "", err
 		}
 	}
+	imagePath, err = c.prepareImageForSession(ctx, strings.TrimSpace(imagePath), session_id)
+	if err != nil {
+		return "", err
+	}
 
 	topK := memoryTopK(c.Config.OrchestratorService.MemoryHistoryTopK)
 	sessionHistory, err := c.getSessionHistory(session_id)
@@ -154,6 +164,7 @@ func (c *ChatbotHandler) Execute(
 	newQueryScore := float32(-1)
 	currentQueryScore := float32(-1)
 	multimodalQueryScore := float32(-1)
+	retrievalLimit := ragRetrievalTopK(c.Config.OrchestratorService.RAGRetrievalTopK)
 
 	if !skipRetrieval {
 		var wg sync.WaitGroup
@@ -182,14 +193,14 @@ func (c *ChatbotHandler) Execute(
 				CollectionName: collectionName,
 				VectorName:     "text_dense",
 				Vector:         embedResults.NewText.Embedding,
-				Limit:          1,
+				Limit:          retrievalLimit,
 				WithPayload:    true,
 			},
 			CurrentQuery: &pb.SearchPointRequest{
 				CollectionName: collectionName,
 				VectorName:     "text_dense",
 				Vector:         embedResults.CurrentText.Embedding,
-				Limit:          1,
+				Limit:          retrievalLimit,
 				WithPayload:    true,
 			},
 		}
@@ -198,7 +209,7 @@ func (c *ChatbotHandler) Execute(
 				CollectionName: collectionName,
 				VectorName:     "image_dense",
 				Vector:         embedResults.Image.Embedding,
-				Limit:          1,
+				Limit:          retrievalLimit,
 				WithPayload:    true,
 			}
 		}
@@ -217,19 +228,7 @@ func (c *ChatbotHandler) Execute(
 		newQueryScore = retrievalScore(retrievalResults.NewQuery)
 		currentQueryScore = retrievalScore(retrievalResults.CurrentQuery)
 		multimodalQueryScore = retrievalScore(retrievalResults.MultimodelQuery)
-
-		if retrievalResults.NewQuery != nil && retrievalResults.NewQuery.Score >= minContextScore {
-			contextText = retrievalResults.NewQuery.Payload["text"]
-			contextSource = "new_query"
-		}
-		if contextText == "" && retrievalResults.CurrentQuery != nil && retrievalResults.CurrentQuery.Score >= minContextScore {
-			contextText = retrievalResults.CurrentQuery.Payload["text"]
-			contextSource = "current_query"
-		}
-		if contextText == "" && retrievalResults.MultimodelQuery != nil && retrievalResults.MultimodelQuery.Score >= minContextScore {
-			contextText = retrievalResults.MultimodelQuery.Payload["text"]
-			contextSource = "multimodal_query"
-		}
+		contextText, contextSource = selectContextFromRetrieval(strings.TrimSpace(imagePath), retrievalResults)
 	}
 
 	finalQuery := query
@@ -245,6 +244,7 @@ func (c *ChatbotHandler) Execute(
 			"current_query_score", currentQueryScore,
 			"multimodal_query_score", multimodalQueryScore,
 			"context_source", contextSource,
+			"retrieval_top_k", retrievalLimit,
 			"skip_retrieval", skipRetrieval,
 			"min_context_score", minContextScore,
 			"full_prompt", finalQuery,
@@ -383,4 +383,31 @@ func retrievalScore(item *pb.SearchResultItem) float32 {
 		return -1
 	}
 	return item.Score
+}
+
+func ragRetrievalTopK(topK int) uint64 {
+	if topK <= 0 {
+		return 1
+	}
+	return uint64(topK)
+}
+
+func selectContextFromRetrieval(imagePath string, results RetrievalResult) (string, string) {
+	hasImage := strings.TrimSpace(imagePath) != ""
+	if hasImage {
+		if results.MultimodelQuery != nil && results.MultimodelQuery.Score >= minContextScore {
+			return strings.TrimSpace(results.MultimodelQuery.Payload["text"]), "multimodal_query"
+		}
+		return "", ""
+	}
+	if results.NewQuery != nil && results.NewQuery.Score >= minContextScore {
+		return strings.TrimSpace(results.NewQuery.Payload["text"]), "new_query"
+	}
+	if results.CurrentQuery != nil && results.CurrentQuery.Score >= minContextScore {
+		return strings.TrimSpace(results.CurrentQuery.Payload["text"]), "current_query"
+	}
+	if results.MultimodelQuery != nil && results.MultimodelQuery.Score >= minContextScore {
+		return strings.TrimSpace(results.MultimodelQuery.Payload["text"]), "multimodal_query"
+	}
+	return "", ""
 }

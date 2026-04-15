@@ -20,7 +20,7 @@ type SearchWithVectorDB struct {
 
 func NewSearchWithVectorDB(appLogger util.Logger, VectorPointStore ports.PointStore) *SearchWithVectorDB {
 	return &SearchWithVectorDB{
-		appLogger: appLogger,
+		appLogger:        appLogger,
 		VectorPointStore: VectorPointStore,
 	}
 }
@@ -174,20 +174,36 @@ func (s *SearchWithVectorDB) searchAndNorm(ctx context.Context, query ports.Sear
 	if err != nil {
 		return nil, err
 	}
-	normFullScore(&resultSearch)
+	normalizationMode := normFullScore(&resultSearch)
+	s.appLogger.Info(
+		"search normalization mode",
+		"vector_name", query.VectorName,
+		"result_count", len(resultSearch),
+		"normalization_mode", normalizationMode,
+		"top_score_after_norm", topScore(resultSearch),
+	)
 	return resultSearch, nil
 }
 
-func normFullScore(resultSearch *[]ports.SearchResult) {
+func normFullScore(resultSearch *[]ports.SearchResult) string {
 	if resultSearch == nil || len(*resultSearch) == 0 {
-		return
+		return "empty"
+	}
+	if len(*resultSearch) < 2 {
+		// Keep raw score when there is only one candidate.
+		return "raw_single"
 	}
 
 	scores := extractScores(resultSearch)
 	minScore, maxScore := getMinMax(scores)
+	if (maxScore - minScore) <= normEpsilon {
+		// Keep raw scores for flat distributions to avoid forcing all candidates to 0.5.
+		return "raw_flat"
+	}
 	for idx, score := range scores {
 		(*resultSearch)[idx].Score = normScoreCandidate(score, minScore, maxScore, normEpsilon)
 	}
+	return "minmax"
 }
 
 func getMinMax(scores []float32) (float32, float32) {
@@ -225,9 +241,6 @@ func extractScores(results *[]ports.SearchResult) []float32 {
 }
 
 func normScoreCandidate(s float32, sMin float32, sMax float32, eps float32) float32 {
-	if (sMax - sMin) <= eps {
-		return 0.5
-	}
 	// Qdrant dense/bm25 scores are relevance scores: larger is better.
 	// Min-max normalization keeps ordering and handles BM25 values > 1 safely.
 	return (s - sMin) / (sMax - sMin + eps)
@@ -244,4 +257,11 @@ func defaultWeightForVector(vectorName string) float32 {
 	default:
 		return 1.0
 	}
+}
+
+func topScore(results []ports.SearchResult) float32 {
+	if len(results) == 0 {
+		return -1
+	}
+	return results[0].Score
 }

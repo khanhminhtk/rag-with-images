@@ -209,8 +209,19 @@ func (r *RagService) SearchPoint(ctx context.Context, req *pb.SearchPointRequest
 		}
 		items = append(items, item)
 	}
+	topScore := float32(-1)
+	if len(items) > 0 && items[0] != nil {
+		topScore = items[0].Score
+	}
 
-	r.appLogger.Info("rag grpc SearchPoint completed", "collection", req.CollectionName, "result_count", len(items), "latency_ms", time.Since(startedAt).Milliseconds())
+	r.appLogger.Info(
+		"rag grpc SearchPoint completed",
+		"collection", req.CollectionName,
+		"vector_name", req.VectorName,
+		"result_count", len(items),
+		"top_score", topScore,
+		"latency_ms", time.Since(startedAt).Milliseconds(),
+	)
 	return &pb.ResponseSearchPoint{
 		CollectionName: req.CollectionName,
 		Results:        items,

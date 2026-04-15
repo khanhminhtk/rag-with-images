@@ -49,12 +49,13 @@ type inMemorySessionEntry struct {
 }
 
 type InMemorySessionStore struct {
-	mu            sync.RWMutex
-	Sessions      map[string]inMemorySessionEntry
-	sessionTTL    time.Duration
-	cleanupTicker *time.Ticker
-	stopCleanupCh chan struct{}
-	closeOnce     sync.Once
+	mu                sync.RWMutex
+	Sessions          map[string]inMemorySessionEntry
+	sessionTTL        time.Duration
+	cleanupTicker     *time.Ticker
+	stopCleanupCh     chan struct{}
+	closeOnce         sync.Once
+	onSessionReleased func(sessionID string)
 }
 
 func (s *InMemorySessionStore) CreateSession(sessionID string) error {
@@ -77,28 +78,38 @@ func (s *InMemorySessionStore) CreateSession(sessionID string) error {
 
 func (s *InMemorySessionStore) GetSession(sessionID string) (orchestrator.SessionData, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	entry, exists := s.Sessions[sessionID]
 	if !exists {
+		s.mu.Unlock()
 		return orchestrator.SessionData{}, nil
 	}
 	if time.Now().After(entry.ExpiresAt) {
 		delete(s.Sessions, sessionID)
+		callback := s.onSessionReleased
+		s.mu.Unlock()
+		if callback != nil {
+			callback(sessionID)
+		}
 		return orchestrator.SessionData{}, nil
 	}
 
 	entry.ExpiresAt = time.Now().Add(s.sessionTTL)
 	s.Sessions[sessionID] = entry
+	s.mu.Unlock()
 
 	return entry.Data, nil
 }
 
 func (s *InMemorySessionStore) DeleteSession(sessionID string) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	_, exists := s.Sessions[sessionID]
 	delete(s.Sessions, sessionID)
+	callback := s.onSessionReleased
+	s.mu.Unlock()
+	if exists && callback != nil {
+		callback(sessionID)
+	}
 	return nil
 }
 
@@ -111,10 +122,16 @@ func (s *InMemorySessionStore) SessionExists(sessionID string) (bool, error) {
 	}
 	if time.Now().After(entry.ExpiresAt) {
 		s.mu.Lock()
+		shouldRelease := false
 		if current, ok := s.Sessions[sessionID]; ok && time.Now().After(current.ExpiresAt) {
 			delete(s.Sessions, sessionID)
+			shouldRelease = true
 		}
+		callback := s.onSessionReleased
 		s.mu.Unlock()
+		if shouldRelease && callback != nil {
+			callback(sessionID)
+		}
 		return false, nil
 	}
 	return exists, nil
@@ -126,6 +143,19 @@ func (s *InMemorySessionStore) Close() {
 	}
 	s.closeOnce.Do(func() {
 		close(s.stopCleanupCh)
+		s.mu.Lock()
+		sessionIDs := make([]string, 0, len(s.Sessions))
+		for sessionID := range s.Sessions {
+			sessionIDs = append(sessionIDs, sessionID)
+			delete(s.Sessions, sessionID)
+		}
+		callback := s.onSessionReleased
+		s.mu.Unlock()
+		if callback != nil {
+			for _, sessionID := range sessionIDs {
+				callback(sessionID)
+			}
+		}
 	})
 }
 
@@ -143,13 +173,26 @@ func (s *InMemorySessionStore) startCleanupLoop() {
 
 func (s *InMemorySessionStore) cleanupExpiredSessions(now time.Time) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	expiredSessionIDs := make([]string, 0)
 	for sessionID, entry := range s.Sessions {
 		if now.After(entry.ExpiresAt) {
 			delete(s.Sessions, sessionID)
+			expiredSessionIDs = append(expiredSessionIDs, sessionID)
 		}
 	}
+	callback := s.onSessionReleased
+	s.mu.Unlock()
+	if callback != nil {
+		for _, sessionID := range expiredSessionIDs {
+			callback(sessionID)
+		}
+	}
+}
+
+func (s *InMemorySessionStore) SetOnSessionReleased(callback func(sessionID string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onSessionReleased = callback
 }
 
 func NewInMemorySessionStore(sessionTTL time.Duration) *InMemorySessionStore {

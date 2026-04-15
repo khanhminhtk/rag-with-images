@@ -27,10 +27,13 @@ func NewEmbeddingService(appLogger util.Logger, infer ports.Inference) *Embeddin
 }
 
 func (s *EmbeddingService) EmbedText(ctx context.Context, req *pb.EmbedTextRequest) (*pb.EmbedTextResponse, error) {
-	_ = ctx
 	startedAt := time.Now()
 	if req != nil {
 		s.appLogger.Info("embedding grpc EmbedText started", "text_len", len(strings.TrimSpace(req.Text)))
+	}
+	if err := ctx.Err(); err != nil {
+		s.appLogger.Error("internal.adapter.grpc.EmbeddingService.EmbedText context error", err)
+		return nil, err
 	}
 
 	if req == nil {
@@ -67,10 +70,13 @@ func (s *EmbeddingService) EmbedText(ctx context.Context, req *pb.EmbedTextReque
 }
 
 func (s *EmbeddingService) EmbedImage(ctx context.Context, req *pb.EmbedImageRequest) (*pb.EmbedImageResponse, error) {
-	_ = ctx
 	startedAt := time.Now()
 	if req != nil {
 		s.appLogger.Info("embedding grpc EmbedImage started", "image_count", len(req.Images), "width", req.Width, "height", req.Height, "channels", req.Channels)
+	}
+	if err := ctx.Err(); err != nil {
+		s.appLogger.Error("internal.adapter.grpc.EmbeddingService.EmbedImage context error", err)
+		return nil, err
 	}
 
 	if req == nil {

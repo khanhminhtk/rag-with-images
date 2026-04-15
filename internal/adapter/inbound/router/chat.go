@@ -24,11 +24,9 @@ func NewHTTPHandlerChat(chatbot *chat.ChatbotHandler) *HTTPHandlerChat {
 }
 
 func (H *HTTPHandlerChat) HTTPHandlerChatExecute(
-	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	_ = ctx
 	if H == nil || H.chatbot == nil {
 		util.WriteJSON(w, http.StatusInternalServerError, orchestrator.ErrorResponse{Error: "chatbot handler is not configured"})
 		return

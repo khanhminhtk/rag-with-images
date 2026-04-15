@@ -46,35 +46,35 @@ func SetupRouter(handler *HTTPHandler) http.Handler {
 			util.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "chat handler is not configured"})
 			return
 		}
-		handler.chat.HTTPHandlerChatExecute(r.Context(), w, r)
+		handler.chat.HTTPHandlerChatExecute(w, r)
 	})
 	r.Post("/api/v1/orchestrator/vectordb/collections", func(w http.ResponseWriter, r *http.Request) {
 		if handler == nil || handler.vectordb == nil {
 			util.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "vectordb handler is not configured"})
 			return
 		}
-		handler.vectordb.HTTPHandlerCreateCollectionExecute(r.Context(), w, r)
+		handler.vectordb.HTTPHandlerCreateCollectionExecute(w, r)
 	})
 	r.Post("/api/v1/orchestrator/vectordb/collections/delete", func(w http.ResponseWriter, r *http.Request) {
 		if handler == nil || handler.vectordb == nil {
 			util.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "vectordb handler is not configured"})
 			return
 		}
-		handler.vectordb.HTTPHandlerDeleteCollectionExecute(r.Context(), w, r)
+		handler.vectordb.HTTPHandlerDeleteCollectionExecute(w, r)
 	})
 	r.Post("/api/v1/orchestrator/vectordb/points/delete-filter", func(w http.ResponseWriter, r *http.Request) {
 		if handler == nil || handler.vectordb == nil {
 			util.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "vectordb handler is not configured"})
 			return
 		}
-		handler.vectordb.HTTPHandlerDeletePointFilterExecute(r.Context(), w, r)
+		handler.vectordb.HTTPHandlerDeletePointFilterExecute(w, r)
 	})
 	r.Post("/api/v1/orchestrator/training-file/process-and-ingest", func(w http.ResponseWriter, r *http.Request) {
 		if handler == nil || handler.trainingFile == nil {
 			util.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "training file handler is not configured"})
 			return
 		}
-		handler.trainingFile.HTTPHandlerProcessAndIngestExecute(r.Context(), w, r)
+		handler.trainingFile.HTTPHandlerProcessAndIngestExecute(w, r)
 	})
 	return r
 }

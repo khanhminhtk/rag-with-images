@@ -28,6 +28,7 @@ type OrchestratorSettings struct {
 	LogPath           string        `yaml:"log_path"`
 	SessionTTLSeconds int           `yaml:"session_ttl_seconds"`
 	MemoryHistoryTopK int           `yaml:"memory_history_top_k"`
+	RAGRetrievalTopK  int           `yaml:"rag_retrieval_top_k"`
 	PreProcessing     PreProcessing `yaml:"pre_processing"`
 	Vectordb          VectordbSetup `yaml:"vectordb"`
 }
@@ -391,6 +392,11 @@ func (c *ConfigLoader) applyEnvOverrides() {
 	if v := firstNonEmptyEnv("ORCHESTRATOR_SERVICE_MEMORY_HISTORY_TOP_K"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
 			c.config.OrchestratorService.MemoryHistoryTopK = parsed
+		}
+	}
+	if v := firstNonEmptyEnv("ORCHESTRATOR_RAG_RETRIEVAL_TOP_K", "ORCHESTRATOR_SERVICE_RAG_RETRIEVAL_TOP_K"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			c.config.OrchestratorService.RAGRetrievalTopK = parsed
 		}
 	}
 	if v := firstNonEmptyEnv("ORCHESTRATOR_VECTORDB_SHARDS"); v != "" {
