@@ -6,8 +6,7 @@ stages:
 build:
     stage: build
     script: 
-        - whoami
-        - pwd
-        - ls
+        - cp ~/envs/mrag/.env ./config/
+        - ls -a config/
     tags:
         - gpu_1650ti
