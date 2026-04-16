@@ -1,11 +1,14 @@
 variables:
     docker_file: docker_compose_dev.yaml
     folder_project: /home/gitlab-runner/projects/mrag
+    process_name_test_llm: llm_service_test
+    process_name_dev_llm: llm_service_dev
 
 stages:
     - build
     - rebuild_docker
     - test
+    - test_e2e
     - deploy
     - checklog
 
@@ -40,8 +43,35 @@ rebuild_docker:
         - ls -a
         - docker compose -f "$docker_file" down
         - docker compose -f "$docker_file" up -d
-        - sudo chmod -R 755 &folder_project/data
-        - sudo chown -R gitlab-runner:gitlab-runner &folder_project/data
+        - sudo chmod -R 755 $folder_project/data
+        - sudo chown -R gitlab-runner:gitlab-runner $folder_project/data
         - docker ps -a
     tags:
         - gpu_1650ti
+
+test_e2e:
+    stage: test
+    variables:
+        GIT_STRATEGY: none
+    need: ["build"]
+    script:
+        - nohup bash -c 'exec -a $process_name_test_llm ./deploy/bin/llm_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_test_llm.pid
+        - ./test_cases/llm_service_test_text_to_text.sh 
+        - ./test_cases/llm_service_test_text_to_image.sh 
+        -  kill -9 "$(ps -ef | grep '[l]lm_service_test' | awk '{print $2}')"
+    tags:
+        - gpu_1650ti
+
+deploy:
+    stage: deploy
+    variables:
+        GIT_STRATEGY: none
+    need: ["test_e2e"]
+    script:
+        - cp -r deploy $folder_project
+        - kill -9 "$(ps -ef | grep '[l]lm_service_dev' | awk '{print $2}')"
+        - nohup bash -c 'exec -a $process_name_dev_llm ./deploy/bin/llm_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_dev_llm.pid
+        - ps -ef | grep '[l]lm_service_dev' | awk '{print $2}'
+    when: manual
+
+
