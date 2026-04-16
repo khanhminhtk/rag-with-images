@@ -1,5 +1,5 @@
 variables:
-    - docker_file: docker_compose_dev.yaml
+    docker_file: docker_compose_dev.yaml
 
 stages:
     - build
