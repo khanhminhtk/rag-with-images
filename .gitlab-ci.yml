@@ -56,9 +56,10 @@ test_e2e:
     needs: ["build"]
     script:
         - nohup bash -c 'exec -a $process_name_test_llm ./deploy/bin/llm_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_test_llm.pid
+        - sleep 5
         - ./test_cases/llm_service_test_text_to_text.sh 
         - ./test_cases/llm_service_test_text_to_image.sh 
-        -  kill -9 "$(ps -ef | grep '[l]lm_service_test' | awk '{print $2}')"
+        - kill -9 "$(ps -ef | grep '[l]lm_service_test' | awk '{print $2}')"
     tags:
         - gpu_1650ti
 
