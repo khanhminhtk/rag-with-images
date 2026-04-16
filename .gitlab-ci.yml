@@ -69,16 +69,24 @@ deploy:
         GIT_STRATEGY: none
     needs: ["test_e2e"]
     script:
-        - cp -r deploy $folder_project
-        - cd $folder_project
+        - rm -rf "$folder_project/deploy"
+        - cp -r deploy "$folder_project/"
+        - cd "$folder_project"
+        - pkill -9 -f llm_service_dev || true
+        - nohup bash -c "exec -a $process_name_dev_llm ./deploy/bin/llm_service" > llm_stream_log.log 2>&1 & echo $! > "$process_name_dev_llm.pid"
         - |
-            pid="$(ps -ef | awk '/[l]lm_service_dev/ {print $2}')"
-            if [ -n "$pid" ]; then
-              kill -9 $pid
-            fi
-        - nohup bash -c 'exec -a $process_name_dev_llm ./deploy/bin/llm_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_dev_llm.pid
-        - sleep 3
-        - ps -ef | grep '[l]lm_service_dev' | awk '{print $2}'
+            for i in $(seq 1 15); do
+              pid="$(ps -ef | awk '/[l]lm_service_dev/ {print $2}')"
+              if [ -n "$pid" ]; then
+                echo "llm_service_dev started with pid: $pid"
+                exit 0
+              fi
+              echo "waiting for llm_service_dev... ($i/15)"
+              sleep 2
+            done
+            echo "llm_service_dev failed to stay running"
+            cat llm_stream_log.log || true
+            exit 1
     when: manual
     tags:
         - gpu_1650ti
