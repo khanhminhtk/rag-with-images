@@ -80,7 +80,7 @@ deploy:
         - ps -ef | grep '[l]lm_service_dev' | awk '{print $2}'
     when: manual
     tags:
-    - gpu_1650ti
+        - gpu_1650ti
 
 checklog:
     stage: checklog
@@ -90,4 +90,6 @@ checklog:
     script:
         - cd $folder_project
         - tail -f llm_stream_log.log
+    tags:
+        - gpu_1650ti
 
