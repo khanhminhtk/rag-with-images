@@ -36,6 +36,7 @@ rebuild_docker:
         GIT_STRATEGY: none
     when: manual
     script:
+        - ls -a
         - docker compose -f "$docker_file" down
         - docker compose -f "$docker_file" up -d
         - docker ps -a
