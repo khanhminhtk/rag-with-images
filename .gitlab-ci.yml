@@ -39,4 +39,7 @@ rebuild_docker:
         - ls -a
         - docker compose -f "$docker_file" down
         - docker compose -f "$docker_file" up -d
+        - sudo chmod -R 755 data
         - docker ps -a
+    tags:
+        - gpu_1650ti
