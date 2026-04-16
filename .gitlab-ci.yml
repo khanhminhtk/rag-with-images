@@ -38,3 +38,4 @@ rebuild_docker:
     script:
         - docker compose -f "$docker_file" down
         - docker compose -f "$docker_file" up -d
+        - docker ps -a
