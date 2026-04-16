@@ -1,10 +1,17 @@
+variables:
+    - docker_file: docker_compose_dev.yaml
+
 stages:
     - build
+    - rebuild_docker
+    - test
     - deploy
     - checklog
 
 build:
     stage: build
+    variables:
+        GIT_STRATEGY: clone
     script: 
         - cp ~/envs/mrag/.env ./config/
         - cp -r ~/projects/mrag/model third_party/onnx_c++/
@@ -22,3 +29,12 @@ build:
         - ls -a deploy/bin/
     tags:
         - gpu_1650ti
+
+rebuild_docker:
+    stage: rebuild_docker
+    variables:
+        GIT_STRATEGY: none
+    when: manual
+    script:
+        - docker compose -f "$docker_file" down
+        - docker compose -f "$docker_file" up -d

@@ -109,3 +109,7 @@ volumes:
   grafana-data:
   loki-data:
   loki-wal:
+
+networks:
+  monitoring:
+    driver: bridge
