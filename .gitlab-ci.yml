@@ -1,5 +1,6 @@
 variables:
     docker_file: docker_compose_dev.yaml
+    folder_project: /home/gitlab-runner/projects/mrag
 
 stages:
     - build
@@ -39,7 +40,8 @@ rebuild_docker:
         - ls -a
         - docker compose -f "$docker_file" down
         - docker compose -f "$docker_file" up -d
-        - sudo chmod -R 755 data
+        - sudo chmod -R 755 &folder_project/data
+        - sudo chown -R gitlab-runner:gitlab-runner &folder_project/data
         - docker ps -a
     tags:
         - gpu_1650ti
