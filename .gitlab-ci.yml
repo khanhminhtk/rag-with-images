@@ -41,8 +41,8 @@ rebuild_docker:
     when: manual
     script:
         - ls -a
-        - docker compose -f "$docker_file" down
-        - docker compose -f "$docker_file" up -d
+        - docker compose --env-file ./config/.env -f "$docker_file" down
+        - docker compose --env-file ./config/.env -f "$docker_file" up -d
         - sudo chmod -R 755 $folder_project/data
         - sudo chown -R gitlab-runner:gitlab-runner $folder_project/data
         - docker ps -a
@@ -70,7 +70,11 @@ deploy:
     script:
         - cp -r deploy $folder_project
         - cd $folder_project
-        - kill -9 "$(ps -ef | grep '[l]lm_service_dev' | awk '{print $2}')"
+        - |
+            pid="$(ps -ef | awk '/[l]lm_service_dev/ {print $2}')"
+            if [ -n "$pid" ]; then
+              kill -9 $pid
+            fi
         - nohup bash -c 'exec -a $process_name_dev_llm ./deploy/bin/llm_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_dev_llm.pid
         - ps -ef | grep '[l]lm_service_dev' | awk '{print $2}'
     when: manual
