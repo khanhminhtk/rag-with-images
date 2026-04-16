@@ -77,6 +77,7 @@ deploy:
               kill -9 $pid
             fi
         - nohup bash -c 'exec -a $process_name_dev_llm ./deploy/bin/llm_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_dev_llm.pid
+        - sleep 3
         - ps -ef | grep '[l]lm_service_dev' | awk '{print $2}'
     when: manual
     tags:
@@ -89,7 +90,7 @@ checklog:
     needs: ["deploy"]
     script:
         - cd $folder_project
-        - tail -f llm_stream_log.log
+        - tail -n 200 llm_stream_log.log
     tags:
         - gpu_1650ti
 
