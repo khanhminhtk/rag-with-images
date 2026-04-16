@@ -50,7 +50,7 @@ rebuild_docker:
         - gpu_1650ti
 
 test_e2e:
-    stage: test
+    stage: test_e2e
     variables:
         GIT_STRATEGY: none
     need: ["build"]
