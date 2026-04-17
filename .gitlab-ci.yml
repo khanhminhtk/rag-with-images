@@ -4,6 +4,10 @@ variables:
     process_name_test_llm: llm_service_test
     process_name_dev_llm: llm_service_dev
     process_name_test_rag: rag_service_test
+    process_name_test_minio: minio_service_test
+    process_name_test_fastapi_uplink: fastapi_uplink_test
+    process_name_test_dlmodel: dlmodel_service_test
+    process_name_test_processfile: processfile_service_test
 
 stages:
     - build
@@ -56,12 +60,55 @@ test_e2e:
         GIT_STRATEGY: none
     needs: ["build"]
     script:
-        - nohup bash -c 'exec -a $process_name_test_llm ./deploy/bin/llm_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_test_llm.pid
-        - nohup bash -c  'exec -a $process_name_test_rag ./deploy/bin/rag_service' > llm_stream_log.log 2>&1 & echo $! > $process_name_test_rag.pid
-        - sleep 5
-        - ./test_cases/llm_service_test_text_to_text.sh 
-        - ./test_cases/llm_service_test_text_to_image.sh 
-        - kill -9 "$(ps -ef | grep '[l]lm_service_test' | awk '{print $2}')"
+        - |
+            set -e
+
+            cleanup() {
+                [ -f "$process_name_test_llm.pid" ] && kill -9 "$(cat "$process_name_test_llm.pid")" 2>/dev/null || true
+                [ -f "$process_name_test_rag.pid" ] && kill -9 "$(cat "$process_name_test_rag.pid")" 2>/dev/null || true
+                [ -f "$process_name_test_minio.pid" ] && kill -9 "$(cat "$process_name_test_minio.pid")" 2>/dev/null || true
+                [ -f "$process_name_test_fastapi_uplink.pid" ] && kill -9 "$(cat "$process_name_test_fastapi_uplink.pid")" 2>/dev/null || true
+                [ -f "$process_name_test_dlmodel.pid" ] && kill -9 "$(cat "$process_name_test_dlmodel.pid")" 2>/dev/null || true
+                [ -f "$process_name_test_processfile.pid" ] && kill -9 "$(cat "$process_name_test_processfile.pid")" 2>/dev/null || true
+            }
+
+            trap cleanup EXIT
+
+            nohup bash -c "exec -a $process_name_test_llm ./deploy/bin/llm_service" > llm_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_test_llm.pid"
+
+            nohup bash -c "exec -a $process_name_test_rag ./deploy/bin/rag_service" > rag_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_test_rag.pid"
+
+            nohup bash -c "exec -a $process_name_test_minio ./deploy/bin/minio_service" > minio_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_test_minio.pid"
+
+            nohup bash -c "exec -a $process_name_test_dlmodel ./deploy/bin/dlmodel_service" > dlmodel_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_test_dlmodel.pid"
+
+            nohup bash -c "exec -a $process_name_test_processfile ./deploy/bin/processfile_service" > processfile_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_test_processfile.pid"
+
+            nohup bash -c "exec -a $process_name_test_fastapi_uplink python3 ./fastapi_uplink.py" > fastapi_uplink_stream_log.log 2>&1 &
+            echo $! > "$process_name_test_fastapi_uplink.pid"
+
+            sleep 10
+
+            ./test_cases/llm_service_test_text_to_text.sh
+            ./test_cases/llm_service_test_text_to_image.sh
+            ./test_cases/rag_service_test_createcollection.sh
+            ./test_cases/rag_service_test_insertpoints.sh
+            ./test_cases/rag_service_test_searchpoints.sh
+            ./test_cases/rag_service_test_deletepointfillter.sh
+            ./test_cases/rag_service_test_searchpoints.sh
+            ./test_cases/rag_service_test_deletecollection.sh
+            ./test_cases/minio_service_test_uploadfile.sh
+            ./test_cases/minio_service_test_presignuploadurl.sh
+            ./test_cases/minio_service_test_deletefile.sh
+            ./test_cases/dlmodel_service_test_embedding_text.sh
+            ./test_cases/dlmodel_service_test_embedding_image.sh
+            ./test_cases/processfile_service_test_process_and_ingest.sh
+
     tags:
         - gpu_1650ti
 
@@ -75,7 +122,7 @@ deploy:
         - cp -r deploy "$folder_project/"
         - cp -r data "$folder_project/deploy"
         - cd "$folder_project/deploy"
-        - pkill -9 -f llm_service_dev || true
+        - kill -9 "$(cat "$process_name_dev_llm.pid")" 2>/dev/null || true
         - nohup bash -c "exec -a $process_name_dev_llm ./bin/llm_service" > llm_stream_log.log 2>&1 & echo $! > "$process_name_dev_llm.pid"
         - |
             for i in $(seq 1 15); do
@@ -104,4 +151,3 @@ checklog:
         - tail -n 200 deploy/logs/llm_service.log 
     tags:
         - gpu_1650ti
-

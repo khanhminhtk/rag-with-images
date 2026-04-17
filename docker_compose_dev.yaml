@@ -20,8 +20,8 @@ services:
     env_file:
       - ./config/.env
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${MINIO_HOST_IP}:${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_HOST_IP}:${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-supersecretpassword}
@@ -40,7 +40,7 @@ services:
     env_file:
       - ./config/.env
     ports:
-      - "${KAFKA_EXTERNAL_PORT:-9092}:9092"
+      - "${KAFKA_HOST_IP}:${KAFKA_EXTERNAL_PORT:-9092}:9092"
     volumes:
       - ${KAFKA_DATA_DIR:-./data/kafka}:/bitnami:z
     environment:

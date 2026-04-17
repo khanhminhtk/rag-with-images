@@ -1,5 +1,5 @@
 qdrant:
-    bootstrap: "localhost"
+    bootstrap: "100.105.80.22"
     port: "${QDRANT_GRPC_PORT}"
     use_gRPC: false
     log_path: "logs/qdrant.log"
@@ -9,7 +9,7 @@ llm_service:
     apikey: "${GEMINI_API_KEY}"
     port: "${LLM_SERVICE_PORT}"
 minio_service:
-    endpoint: "localhost:9000"
+    endpoint: "100.105.80.22:9000"
     access_key: "admin"
     secret_key: "supersecretpassword"
     use_ssl: false
