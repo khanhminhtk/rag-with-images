@@ -60,6 +60,15 @@ test_e2e:
         GIT_STRATEGY: none
     needs: ["build"]
     script:
+        - python3 -m venv .venv
+        - source .venv/bin/activate
+
+        - python -m pip install --upgrade pip
+        - python -m pip install fastapi uvicorn
+        - rm -f fastapi_uplink_stream_log.log fastapi_uplink_test.pid
+
+
+
         - |
             set -e
 
@@ -89,8 +98,9 @@ test_e2e:
             nohup bash -c "exec -a $process_name_test_processfile ./deploy/bin/processfile_service" > processfile_service_stream_log.log 2>&1 &
             echo $! > "$process_name_test_processfile.pid"
 
-            nohup bash -c "exec -a $process_name_test_fastapi_uplink python3 ./fastapi_uplink.py" > fastapi_uplink_stream_log.log 2>&1 &
+            nohup bash -c "exec -a $process_name_test_fastapi_uplink ./.venv/bin/python ./fastapi_uplink.py" > fastapi_uplink_stream_log.log 2>&1 &
             echo $! > "$process_name_test_fastapi_uplink.pid"
+
 
             sleep 10
 
