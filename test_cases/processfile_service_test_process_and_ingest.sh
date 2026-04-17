@@ -4,6 +4,7 @@ source "$(cd "$(dirname "$0")" && pwd)/_common.sh"
 
 REQUEST_TOPIC="${REQUEST_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUEST_TOPIC:-orchestrator.training_file.process_and_ingest.request}}"
 RESULT_TOPIC="${RESULT_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_RESULT_TOPIC:-orchestrator.training_file.process_and_ingest.result}}"
+RESULT_TIMEOUT_MS="${RESULT_TIMEOUT_MS:-60000}"
 
 UUID="${UUID:-ai_sota_0001}"
 LANG_VALUE="${LANG_VALUE:-vi}"
@@ -38,5 +39,30 @@ docker exec -i "$KAFKA_CONTAINER" kafka-console-producer.sh --bootstrap-server "
 JSON
 
 echo "Published correlation_id=$CORRELATION_ID"
-echo "\n== [4] Consume result (run in another terminal) =="
-echo "docker exec -it $KAFKA_CONTAINER kafka-console-consumer.sh --bootstrap-server $KAFKA_BOOTSTRAP --topic $RESULT_TOPIC --from-beginning"
+
+echo "== [4] Wait result =="
+RAW_RESULT=$(docker exec -i "$KAFKA_CONTAINER" kafka-console-consumer.sh \
+  --bootstrap-server "$KAFKA_BOOTSTRAP" \
+  --topic "$RESULT_TOPIC" \
+  --from-beginning \
+  --timeout-ms "$RESULT_TIMEOUT_MS" \
+  --property print.key=true \
+  --property key.separator='|' \
+  2>/dev/null | grep "\"correlation_id\":\"${CORRELATION_ID}\"" | tail -n 1 || true)
+
+if [[ -z "$RAW_RESULT" ]]; then
+  echo "No result received for correlation_id=$CORRELATION_ID within ${RESULT_TIMEOUT_MS}ms" >&2
+  exit 1
+fi
+
+RESULT_JSON="${RAW_RESULT#*|}"
+echo "$RESULT_JSON" | jq .
+
+SUCCESS="$(echo "$RESULT_JSON" | jq -r '.success // empty')"
+if [[ "$SUCCESS" != "true" ]]; then
+  MESSAGE="$(echo "$RESULT_JSON" | jq -r '.message // "unknown error"')"
+  echo "Process and ingest failed: $MESSAGE" >&2
+  exit 1
+fi
+
+echo "Process and ingest succeeded."
