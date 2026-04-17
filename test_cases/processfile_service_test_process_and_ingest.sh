@@ -4,7 +4,7 @@ source "$(cd "$(dirname "$0")" && pwd)/_common.sh"
 
 REQUEST_TOPIC="${REQUEST_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUEST_TOPIC:-orchestrator.training_file.process_and_ingest.request}}"
 RESULT_TOPIC="${RESULT_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_RESULT_TOPIC:-orchestrator.training_file.process_and_ingest.result}}"
-RESULT_TIMEOUT_MS="${RESULT_TIMEOUT_MS:-60000}"
+RESULT_TIMEOUT_MS="${RESULT_TIMEOUT_MS:-1800000}"
 
 UUID="${UUID:-ai_sota_0001}"
 LANG_VALUE="${LANG_VALUE:-vi}"
