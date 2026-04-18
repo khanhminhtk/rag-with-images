@@ -107,6 +107,23 @@ test_e2e:
                 done
             }
 
+            cleanup_named_processes() {
+                for proc_name in \
+                    "$process_name_test_llm" \
+                    "$process_name_test_rag" \
+                    "$process_name_test_minio" \
+                    "$process_name_test_dlmodel" \
+                    "$process_name_test_processfile" \
+                    "fastapi_uplink.py"
+                do
+                    pids="$(pgrep -f "$proc_name" || true)"
+                    if [ -n "$pids" ]; then
+                        echo "[cleanup] process $proc_name -> kill $pids"
+                        kill -9 $pids 2>/dev/null || true
+                    fi
+                done
+            }
+
             cleanup() {
                 [ -f "$process_name_test_llm.pid" ] && kill -9 "$(cat "$process_name_test_llm.pid")" 2>/dev/null || true
                 [ -f "$process_name_test_rag.pid" ] && kill -9 "$(cat "$process_name_test_rag.pid")" 2>/dev/null || true
@@ -118,6 +135,8 @@ test_e2e:
 
             trap cleanup EXIT
             cleanup_ports
+            cleanup_named_processes
+            rm -f "$process_name_test_llm.pid" "$process_name_test_rag.pid" "$process_name_test_minio.pid" "$process_name_test_fastapi_uplink.pid" "$process_name_test_dlmodel.pid" "$process_name_test_processfile.pid"
             sleep 1
 
             nohup bash -c "exec -a $process_name_test_llm ./deploy/bin/llm_service" > llm_service_stream_log.log 2>&1 &
