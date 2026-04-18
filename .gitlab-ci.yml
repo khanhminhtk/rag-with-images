@@ -30,13 +30,14 @@ build:
         - mkdir -p deploy/{bin,logs,third_party/onnx_c++}
         - cp -r config deploy/
         - cp -r third_party/onnx_c++/config/ deploy/third_party/onnx_c++/
-        - export ORT_VER=1.18.0
+        - export ORT_VER=1.20.1
         - export ORT_CUDA_PACKAGE="onnxruntime-linux-x64-gpu-${ORT_VER}.tgz"
         - export ORT_CUDA_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_CUDA_PACKAGE}"
         - mkdir -p .cache/onnxruntime
         - export ORT_CUDA_ARCHIVE="$PWD/.cache/onnxruntime/${ORT_CUDA_PACKAGE}"
+        - ldconfig -p | grep -E 'libcublasLt.so.12|libcudart.so.12'
         - curl -fL --retry 8 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 1800 "$ORT_CUDA_URL" -o "$ORT_CUDA_ARCHIVE"
-        - cmake -S ./third_party/onnx_c++ -B ./third_party/onnx_c++/build -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 -DORT_USE_CUDA=ON -DORT_ARCHIVE_PATH="$ORT_CUDA_ARCHIVE"
+        - cmake -S ./third_party/onnx_c++ -B ./third_party/onnx_c++/build -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 -DORT_USE_CUDA=ON -DORT_VER="$ORT_VER" -DORT_ARCHIVE_PATH="$ORT_CUDA_ARCHIVE"
         - cmake --build ./third_party/onnx_c++/build -j"$(nproc)"
         - go build -o deploy/bin/llm_service cmd/llm_service/main.go
         - go build -o deploy/bin/dlmodel_service cmd/dlmodel_service/main.go

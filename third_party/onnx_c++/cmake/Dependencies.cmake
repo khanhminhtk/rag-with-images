@@ -1,7 +1,7 @@
 include(FetchContent)
 
 option(ORT_USE_CUDA "Download and link ONNX Runtime GPU package" OFF)
-set(ORT_VER "1.18.0" CACHE STRING "ONNX Runtime version")
+set(ORT_VER "1.20.1" CACHE STRING "ONNX Runtime version")
 set(ORT_URL_OVERRIDE "" CACHE STRING "Custom ONNX Runtime package URL")
 set(ORT_ARCHIVE_PATH "" CACHE FILEPATH "Local ONNX Runtime archive (.tgz)")
 
