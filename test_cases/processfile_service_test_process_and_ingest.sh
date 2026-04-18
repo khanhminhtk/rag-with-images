@@ -58,7 +58,7 @@ RAW_RESULT=$(docker exec -i "$KAFKA_CONTAINER" kafka-console-consumer.sh \
   --timeout-ms "$RESULT_TIMEOUT_MS" \
   --property print.key=true \
   --property key.separator='|' \
-  2>/dev/null | grep "\"correlation_id\":\"${CORRELATION_ID}\"" | tail -n 1 || true)
+  2>/dev/null | grep -m 1 "\"correlation_id\":\"${CORRELATION_ID}\"" || true)
 
 if [[ -z "$RAW_RESULT" ]]; then
   echo "No result received for correlation_id=$CORRELATION_ID within ${RESULT_TIMEOUT_MS}ms" >&2
