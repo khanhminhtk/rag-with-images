@@ -5,6 +5,7 @@ source "$(cd "$(dirname "$0")" && pwd)/_common.sh"
 REQUEST_TOPIC="${REQUEST_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUEST_TOPIC:-orchestrator.training_file.process_and_ingest.request}}"
 RESULT_TOPIC="${RESULT_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_RESULT_TOPIC:-orchestrator.training_file.process_and_ingest.result}}"
 RESULT_TIMEOUT_MS="${RESULT_TIMEOUT_MS:-1800000}"
+RESULT_POLL_INTERVAL_MS="${RESULT_POLL_INTERVAL_MS:-10000}"
 
 UUID="${UUID:-ai_sota_0022}"
 LANG_VALUE="${LANG_VALUE:-vi}"
@@ -51,14 +52,26 @@ JSON
 echo "Published correlation_id=$CORRELATION_ID"
 
 echo "== [4] Wait result =="
-RAW_RESULT=$(docker exec -i "$KAFKA_CONTAINER" kafka-console-consumer.sh \
-  --bootstrap-server "$KAFKA_BOOTSTRAP" \
-  --topic "$RESULT_TOPIC" \
-  --from-beginning \
-  --timeout-ms "$RESULT_TIMEOUT_MS" \
-  --property print.key=true \
-  --property key.separator='|' \
-  2>/dev/null | grep -m 1 "\"correlation_id\":\"${CORRELATION_ID}\"" || true)
+RAW_RESULT=""
+ELAPSED_MS=0
+while [[ "$ELAPSED_MS" -lt "$RESULT_TIMEOUT_MS" ]]; do
+  CHUNK_RESULT=$(docker exec -i "$KAFKA_CONTAINER" kafka-console-consumer.sh \
+    --bootstrap-server "$KAFKA_BOOTSTRAP" \
+    --topic "$RESULT_TOPIC" \
+    --from-beginning \
+    --timeout-ms "$RESULT_POLL_INTERVAL_MS" \
+    --property print.key=true \
+    --property key.separator='|' \
+    2>/dev/null | grep -m 1 "\"correlation_id\":\"${CORRELATION_ID}\"" || true)
+
+  if [[ -n "$CHUNK_RESULT" ]]; then
+    RAW_RESULT="$CHUNK_RESULT"
+    break
+  fi
+
+  ELAPSED_MS=$((ELAPSED_MS + RESULT_POLL_INTERVAL_MS))
+  echo "Waiting result... ${ELAPSED_MS}/${RESULT_TIMEOUT_MS}ms (correlation_id=${CORRELATION_ID})"
+done
 
 if [[ -z "$RAW_RESULT" ]]; then
   echo "No result received for correlation_id=$CORRELATION_ID within ${RESULT_TIMEOUT_MS}ms" >&2
