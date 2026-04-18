@@ -1,7 +1,66 @@
 #include "onnx_session.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
+
+namespace {
+std::string toLower(std::string value) {
+    std::transform(
+        value.begin(),
+        value.end(),
+        value.begin(),
+        [](const unsigned char c) { return static_cast<char>(std::tolower(c)); }
+    );
+    return value;
+}
+
+bool providerMatchesAlias(const std::string& providerName, const std::string& alias) {
+    const std::string providerLower = toLower(providerName);
+    if (alias == "cuda") {
+        return providerLower.find("cuda") != std::string::npos;
+    }
+    if (alias == "tensorrt") {
+        return providerLower.find("tensorrt") != std::string::npos;
+    }
+    if (alias == "cpu") {
+        return providerLower.find("cpu") != std::string::npos;
+    }
+    return providerLower == alias;
+}
+
+std::string joinProviders(const std::vector<std::string>& providers) {
+    std::ostringstream os;
+    for (size_t i = 0; i < providers.size(); ++i) {
+        if (i > 0) {
+            os << ", ";
+        }
+        os << providers[i];
+    }
+    return os.str();
+}
+
+void ensureProviderAvailable(const std::string& requestedProvider) {
+    const auto availableProviders = Ort::GetAvailableProviders();
+    const bool found = std::any_of(
+        availableProviders.begin(),
+        availableProviders.end(),
+        [&](const std::string& name) { return providerMatchesAlias(name, requestedProvider); }
+    );
+
+    if (found) {
+        return;
+    }
+
+    throw std::runtime_error(
+        "Requested execution provider '" + requestedProvider + "' is not available. "
+        "Available providers: [" + joinProviders(availableProviders) + "]. "
+        "If you need CUDA, rebuild with -DORT_USE_CUDA=ON (or set ORT_URL_OVERRIDE to a GPU package)."
+    );
+}
+} // namespace
 
 void OnnxSession::configureExecutionMode(const std::string& mode) const {
     if (mode == "parallel") {
@@ -30,13 +89,17 @@ void OnnxSession::configureGraphOptimization(const std::string& level) const {
 void OnnxSession::configureExecutionProvider(
     const OnnxSessionConfig::ExecutionProvider& provider
 ) const {
-    if (provider.type == "cpu") {
+    const std::string providerType = toLower(provider.type);
+
+    if (providerType == "cpu") {
         std::cout << "[INFO] Using CPU execution provider" << std::endl;
-    } else if (provider.type == "cuda") {
+    } else if (providerType == "cuda") {
+        ensureProviderAvailable("cuda");
         OrtCUDAProviderOptions cuda_opts;
         cuda_opts.device_id = provider.device;
         sessionOptions_->AppendExecutionProvider_CUDA(cuda_opts);
-    } else if (provider.type == "tensorrt") {
+    } else if (providerType == "tensorrt") {
+        ensureProviderAvailable("tensorrt");
         OrtTensorRTProviderOptionsV2* trt_opts = nullptr;
         auto& api = Ort::GetApi();
         Ort::ThrowOnError(api.CreateTensorRTProviderOptions(&trt_opts));

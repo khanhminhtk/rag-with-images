@@ -1,5 +1,9 @@
 include(FetchContent)
 
+option(ORT_USE_CUDA "Download and link ONNX Runtime GPU package" OFF)
+set(ORT_VER "1.18.0" CACHE STRING "ONNX Runtime version")
+set(ORT_URL_OVERRIDE "" CACHE STRING "Custom ONNX Runtime package URL")
+
 # ── yaml-cpp ────────────────────────────────────
 message(STATUS "Fetching yaml-cpp...")
 
@@ -40,11 +44,24 @@ if(NOT TARGET onnxruntime)
         set(ORT_ARCH "linux-x64")
     endif()
 
-    set(ORT_VER "1.18.0")
-    set(ORT_FOLDER "onnxruntime-${ORT_ARCH}-${ORT_VER}")
-    set(ORT_URL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_FOLDER}.tgz")
+    if(ORT_USE_CUDA)
+        if(NOT ORT_ARCH STREQUAL "linux-x64")
+            message(FATAL_ERROR "ORT_USE_CUDA=ON is only supported for linux-x64 prebuilt package in this project")
+        endif()
+        set(ORT_FOLDER "onnxruntime-${ORT_ARCH}-gpu-${ORT_VER}")
+        set(ORT_VARIANT "gpu")
+    else()
+        set(ORT_FOLDER "onnxruntime-${ORT_ARCH}-${ORT_VER}")
+        set(ORT_VARIANT "cpu")
+    endif()
 
-    message(STATUS "Downloading OnnxRuntime (${ORT_ARCH})...")
+    if(ORT_URL_OVERRIDE)
+        set(ORT_URL "${ORT_URL_OVERRIDE}")
+    else()
+        set(ORT_URL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_FOLDER}.tgz")
+    endif()
+
+    message(STATUS "Downloading OnnxRuntime ${ORT_VER} (${ORT_ARCH}, variant=${ORT_VARIANT})")
 
     FetchContent_Declare(
         onnxruntime_prebuilt
@@ -77,6 +94,7 @@ if(NOT TARGET onnxruntime)
     )
 
     message(STATUS "OnnxRuntime: ${ORT_FINAL_LIB}")
+    message(STATUS "OnnxRuntime package folder: ${ORT_FOLDER}")
 endif()
 
 # ── spdlog ──────────────────────────────────────
