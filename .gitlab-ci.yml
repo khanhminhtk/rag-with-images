@@ -31,13 +31,25 @@ build:
         - cp -r config deploy/
         - cp -r third_party/onnx_c++/config/ deploy/third_party/onnx_c++/
         - export ORT_VER=1.20.1
-        - export ORT_CUDA_PACKAGE="onnxruntime-linux-x64-gpu-${ORT_VER}.tgz"
-        - export ORT_CUDA_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_CUDA_PACKAGE}"
+        - export ORT_USE_CUDA=ON
+        - export ORT_PACKAGE="onnxruntime-linux-x64-gpu-${ORT_VER}.tgz"
+        - ldconfig -p | grep -E 'libcublasLt.so.12|libcudart.so.12|libcudnn.so.9' || true
+        - |
+            if ! ldconfig -p | grep -q 'libcudnn.so.9'; then
+              echo "[CI] libcudnn.so.9 not found on runner -> fallback to ONNX Runtime CPU package"
+              export ORT_USE_CUDA=OFF
+              export ORT_PACKAGE="onnxruntime-linux-x64-${ORT_VER}.tgz"
+              cp third_party/onnx_c++/config/config.yaml third_party/onnx_c++/config/config.ci.cpu.yaml
+              sed -i 's/type: "cuda"/type: "cpu"/g' third_party/onnx_c++/config/config.ci.cpu.yaml
+              sed -i 's|^EMBEDDING_SERVICE_JINA_CONFIG=.*|EMBEDDING_SERVICE_JINA_CONFIG=../../third_party/onnx_c++/config/config.ci.cpu.yaml|' config/.env
+              cp third_party/onnx_c++/config/config.ci.cpu.yaml deploy/third_party/onnx_c++/config/config.ci.cpu.yaml
+              sed -i 's|^EMBEDDING_SERVICE_JINA_CONFIG=.*|EMBEDDING_SERVICE_JINA_CONFIG=../../third_party/onnx_c++/config/config.ci.cpu.yaml|' deploy/config/.env
+            fi
+        - export ORT_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_PACKAGE}"
         - mkdir -p .cache/onnxruntime
-        - export ORT_CUDA_ARCHIVE="$PWD/.cache/onnxruntime/${ORT_CUDA_PACKAGE}"
-        - ldconfig -p | grep -E 'libcublasLt.so.12|libcudart.so.12|libcudnn.so.9'
-        - curl -fL --retry 8 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 1800 "$ORT_CUDA_URL" -o "$ORT_CUDA_ARCHIVE"
-        - cmake -S ./third_party/onnx_c++ -B ./third_party/onnx_c++/build -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 -DORT_USE_CUDA=ON -DORT_VER="$ORT_VER" -DORT_ARCHIVE_PATH="$ORT_CUDA_ARCHIVE"
+        - export ORT_ARCHIVE="$PWD/.cache/onnxruntime/${ORT_PACKAGE}"
+        - curl -fL --retry 8 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 1800 "$ORT_URL" -o "$ORT_ARCHIVE"
+        - cmake -S ./third_party/onnx_c++ -B ./third_party/onnx_c++/build -DCMAKE_BUILD_TYPE=Release -DOpenCV_DIR=/usr/lib/x86_64-linux-gnu/cmake/opencv4 -DORT_USE_CUDA="$ORT_USE_CUDA" -DORT_VER="$ORT_VER" -DORT_ARCHIVE_PATH="$ORT_ARCHIVE"
         - cmake --build ./third_party/onnx_c++/build -j"$(nproc)"
         - go build -o deploy/bin/llm_service cmd/llm_service/main.go
         - go build -o deploy/bin/dlmodel_service cmd/dlmodel_service/main.go
