@@ -6,7 +6,7 @@ REQUEST_TOPIC="${REQUEST_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUES
 RESULT_TOPIC="${RESULT_TOPIC:-${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_RESULT_TOPIC:-orchestrator.training_file.process_and_ingest.result}}"
 RESULT_TIMEOUT_MS="${RESULT_TIMEOUT_MS:-1800000}"
 
-UUID="${UUID:-test}"
+UUID="${UUID:-ai_sota_0022}"
 LANG_VALUE="${LANG_VALUE:-vi}"
 UPLINK_HOST="${UPLINK_HOST:-localhost}"
 UPLINK_PORT="${UPLINK_PORT:-8000}"
@@ -14,8 +14,18 @@ UPLINK_PATH="${UPLINK_PATH:-/download/ai_sota_0022.pdf}"
 URL_DOWNLOAD="${URL_DOWNLOAD:-http://${UPLINK_HOST}:${UPLINK_PORT}${UPLINK_PATH}}"
 CORRELATION_ID="processfile-${UUID}-$(date +%s)"
 
-echo "== [0] Start processfile service in another terminal =="
-echo "cd $ROOT_DIR && go run cmd/processfile_service/main.go"
+echo "== [0] Verify processfile service is running =="
+PROCESSFILE_PATTERN='processfile_service_test|/processfile_service|cmd/processfile_service/main.go'
+if ! pgrep -f "$PROCESSFILE_PATTERN" >/dev/null 2>&1; then
+  echo "processfile_service is not running." >&2
+  echo "Expected process pattern: $PROCESSFILE_PATTERN" >&2
+  echo "Current related processes:" >&2
+  pgrep -af 'processfile|dlmodel|rag_service|llm_service' 2>/dev/null || true
+  echo "In CI, this service is started by nohup in .gitlab-ci.yml test_e2e." >&2
+  echo "For local run, start once before this test (do not start duplicate instances)." >&2
+  exit 1
+fi
+echo "processfile_service is running."
 echo
 
 echo "== [1] Validate input file =="

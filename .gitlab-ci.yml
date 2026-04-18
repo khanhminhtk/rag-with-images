@@ -28,6 +28,8 @@ build:
         - find data -maxdepth 10
         - cp -r ~/projects/mrag/ai_sota_0022 data/processed/
         - find data -maxdepth 10
+        - mkdir -p data/download
+        - mkdir -p data/process_file
         - cp ~/envs/mrag/.env ./config/
         - cp -r ~/projects/mrag/model third_party/onnx_c++/
         - mkdir -p deploy/{bin,logs,third_party/onnx_c++}
