@@ -10,6 +10,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -32,8 +33,13 @@ func NewJinaAdapter(configPath string, appLogger util.Logger) (*JinaAdapter, err
 
 	h := C.jina_init(cConfigPath)
 	if h == nil {
-		appLogger.Error("jina adapter initialization failed", errors.New("cgo initialization error"), "config_path", configPath)
-		return nil, errors.New("cgo initialization error")
+		lastErr := strings.TrimSpace(C.GoString(C.jina_last_error()))
+		if lastErr == "" {
+			lastErr = "unknown native initialization failure"
+		}
+		err := fmt.Errorf("cgo initialization error: %s", lastErr)
+		appLogger.Error("jina adapter initialization failed", err, "config_path", configPath)
+		return nil, err
 	}
 
 	appLogger.Info("jina adapter initialized successfully", "config_path", configPath)

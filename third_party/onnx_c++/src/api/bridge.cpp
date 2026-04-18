@@ -11,14 +11,27 @@
 
 extern "C" {
 
+namespace {
+thread_local std::string g_last_error;
+}
+
+const char* jina_last_error(void) {
+    return g_last_error.c_str();
+}
+
 JinaHandle jina_init(const char* config_path) {
     try {
+        g_last_error.clear();
         if (!config_path) return nullptr;
         
         auto* container = new bootstrap::DIContainer();
         bootstrap::ServiceRegistry::registerServices(*container, config_path);
         return static_cast<JinaHandle>(container);
+    } catch (const std::exception& e) {
+        g_last_error = e.what();
+        return nullptr;
     } catch (...) {
+        g_last_error = "unknown C++ exception during jina_init";
         return nullptr;
     }
 }
@@ -31,6 +44,7 @@ void jina_release(JinaHandle handle) {
 
 int jina_embed_text(JinaHandle handle, const char* text, float* out_data) {
     try {
+        g_last_error.clear();
         if (!handle || !text || !out_data) return -1;
         
         auto* container = static_cast<bootstrap::DIContainer*>(handle);
@@ -40,14 +54,17 @@ int jina_embed_text(JinaHandle handle, const char* text, float* out_data) {
         std::memcpy(out_data, result.data().data(), result.dimension() * sizeof(float));
         return 0;
     } catch (const std::exception& e) {
+        g_last_error = e.what();
         return -1;
     } catch (...) {
+        g_last_error = "unknown C++ exception during jina_embed_text";
         return -2;
     }
 }
 
 int jina_embed_batch_text(JinaHandle handle, const char** texts, int count, float* out_data) {
     try {
+        g_last_error.clear();
         if (!handle || !texts || count <= 0 || !out_data) return -1;
         
         auto* container = static_cast<bootstrap::DIContainer*>(handle);
@@ -65,11 +82,18 @@ int jina_embed_batch_text(JinaHandle handle, const char** texts, int count, floa
             std::memcpy(out_data + i * 768, results[i].data().data(), 768 * sizeof(float));
         }
         return 0;
-    } catch (...) { return -1; }
+    } catch (const std::exception& e) {
+        g_last_error = e.what();
+        return -1;
+    } catch (...) {
+        g_last_error = "unknown C++ exception during jina_embed_batch_text";
+        return -1;
+    }
 }
 
 int jina_embed_image(JinaHandle handle, const uint8_t* img_data, int width, int height, int channels, float* out_data) {
     try {
+        g_last_error.clear();
         if (!handle || !img_data || !out_data) return -1;
         
         auto* container = static_cast<bootstrap::DIContainer*>(handle);
@@ -81,11 +105,18 @@ int jina_embed_image(JinaHandle handle, const uint8_t* img_data, int width, int 
         
         std::memcpy(out_data, result.data().data(), 768 * sizeof(float));
         return 0;
-    } catch (...) { return -1; }
+    } catch (const std::exception& e) {
+        g_last_error = e.what();
+        return -1;
+    } catch (...) {
+        g_last_error = "unknown C++ exception during jina_embed_image";
+        return -1;
+    }
 }
 
 int jina_embed_batch_image(JinaHandle handle, const uint8_t* imgs_data, int count, int width, int height, int channels, float* out_data) {
     try {
+        g_last_error.clear();
         if (!handle || !imgs_data || count <= 0 || !out_data) return -1;
         
         auto* container = static_cast<bootstrap::DIContainer*>(handle);
@@ -108,7 +139,13 @@ int jina_embed_batch_image(JinaHandle handle, const uint8_t* imgs_data, int coun
             std::memcpy(out_data + i * 768, results[i].data().data(), 768 * sizeof(float));
         }
         return 0;
-    } catch (...) { return -1; }
+    } catch (const std::exception& e) {
+        g_last_error = e.what();
+        return -1;
+    } catch (...) {
+        g_last_error = "unknown C++ exception during jina_embed_batch_image";
+        return -1;
+    }
 }
 
 }

@@ -13,6 +13,7 @@ typedef void* JinaHandle;
 // Initialization and Release
 JinaHandle jina_init(const char* config_path);
 void jina_release(JinaHandle handle);
+const char* jina_last_error(void);
 
 /**
  * 1. Embed Single Text
