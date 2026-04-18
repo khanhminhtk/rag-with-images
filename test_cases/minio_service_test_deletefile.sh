@@ -4,7 +4,7 @@ source "$(cd "$(dirname "$0")" && pwd)/_common.sh"
 
 UPLOAD_HOST="${UPLOAD_HOST:-localhost}"
 UPLOAD_PORT="${UPLOAD_PORT:-8000}"
-UPLOAD_FILENAME="${UPLOAD_FILENAME:-_page_1_Figure_0.jpeg}"
+UPLOAD_FILENAME="${UPLOAD_FILENAME:-_page_1_Figure_4.jpeg}"
 URL_DOWNLOAD="${URL_DOWNLOAD:-http://${UPLOAD_HOST}:${UPLOAD_PORT}/download/${UPLOAD_FILENAME}}"
 FOLDER_DOWNLOAD="${FOLDER_DOWNLOAD:-tmp/minio-upload-test}"
 URL_PATH_NO_QUERY="${URL_DOWNLOAD%%\?*}"
