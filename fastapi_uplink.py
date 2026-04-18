@@ -18,10 +18,28 @@ DOWNLOAD_ROUTE = "/download/{filename}"
 
 def build_candidates(filename: str) -> list[Path]:
     safe_name = Path(filename).name
-    return [
-        BASE_DIR / "tmp" / safe_name,
-        BASE_DIR / "worktree" / "develop" / "tmp" / safe_name,
-    ]
+    name_variants = [safe_name]
+    lower_name = safe_name.lower()
+
+    # Accept common JPEG extension variants to reduce accidental 404s.
+    if lower_name.endswith(".jpg"):
+        name_variants.append(safe_name[:-4] + ".jpeg")
+    elif lower_name.endswith(".jpeg"):
+        name_variants.append(safe_name[:-5] + ".jpg")
+
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+    for variant in name_variants:
+        for path in (
+            BASE_DIR / "tmp" / variant,
+            BASE_DIR / "worktree" / "develop" / "tmp" / variant,
+        ):
+            if path in seen:
+                continue
+            seen.add(path)
+            candidates.append(path)
+
+    return candidates
 
 
 @app.get("/", response_class=HTMLResponse)

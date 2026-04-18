@@ -4,7 +4,7 @@ source "$(cd "$(dirname "$0")" && pwd)/_common.sh"
 
 UPLOAD_HOST="${UPLOAD_HOST:-localhost}"
 UPLOAD_PORT="${UPLOAD_PORT:-8000}"
-UPLOAD_FILENAME="${UPLOAD_FILENAME:-forest-trees-early-morning-foggy-sunrise-woods-landscape-3840x2160-4344.jpeg}"
+UPLOAD_FILENAME="${UPLOAD_FILENAME:-forest-trees-early-morning-foggy-sunrise-woods-landscape-3840x2160-4344.jpg}"
 URL_DOWNLOAD="${URL_DOWNLOAD:-http://${UPLOAD_HOST}:${UPLOAD_PORT}/download/${UPLOAD_FILENAME}}"
 FOLDER_DOWNLOAD="${FOLDER_DOWNLOAD:-tmp/minio-upload-test}"
 URL_PATH_NO_QUERY="${URL_DOWNLOAD%%\?*}"
