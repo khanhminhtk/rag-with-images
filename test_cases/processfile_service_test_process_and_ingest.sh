@@ -10,7 +10,7 @@ UUID="${UUID:-test}"
 LANG_VALUE="${LANG_VALUE:-vi}"
 UPLINK_HOST="${UPLINK_HOST:-localhost}"
 UPLINK_PORT="${UPLINK_PORT:-8000}"
-UPLINK_PATH="${UPLINK_PATH:-/download/ai_sota_0008.pdf}"
+UPLINK_PATH="${UPLINK_PATH:-/download/ai_sota_0022.pdf}"
 URL_DOWNLOAD="${URL_DOWNLOAD:-http://${UPLINK_HOST}:${UPLINK_PORT}${UPLINK_PATH}}"
 CORRELATION_ID="processfile-${UUID}-$(date +%s)"
 

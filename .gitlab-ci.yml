@@ -24,7 +24,7 @@ build:
     script: 
         - cp -r ~/projects/mrag/tmp .
         - mkdir -p data/processed
-        - cp -r ~/projects/mrag/ai_sota_0008 data/processed/
+        - cp -r ~/projects/mrag/ai_sota_0022 data/processed/
         - cp ~/envs/mrag/.env ./config/
         - cp -r ~/projects/mrag/model third_party/onnx_c++/
         - mkdir -p deploy/{bin,logs,third_party/onnx_c++}
