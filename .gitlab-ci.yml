@@ -92,11 +92,18 @@ test_e2e:
         - python -m pip install --upgrade pip
         - python -m pip install fastapi uvicorn
         - rm -f fastapi_uplink_stream_log.log fastapi_uplink_test.pid
-
-
-
         - |
             set -e
+
+            cleanup_ports() {
+                for p in 50051 50052 50053 50054 50055 8080 9000 9001 9092 6333 6334; do
+                    pids="$(ss -ltnp 2>/dev/null | sed -n "s/.*:${p} .*pid=\([0-9]\+\).*/\1/p" | sort -u)"
+                    if [ -n "$pids" ]; then
+                        echo "[cleanup] port $p -> kill $pids"
+                        kill -9 $pids 2>/dev/null || true
+                    fi
+                done
+            }
 
             cleanup() {
                 [ -f "$process_name_test_llm.pid" ] && kill -9 "$(cat "$process_name_test_llm.pid")" 2>/dev/null || true
@@ -108,6 +115,8 @@ test_e2e:
             }
 
             trap cleanup EXIT
+            cleanup_ports
+            sleep 1
 
             nohup bash -c "exec -a $process_name_test_llm ./deploy/bin/llm_service" > llm_service_stream_log.log 2>&1 &
             echo $! > "$process_name_test_llm.pid"
