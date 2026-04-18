@@ -3,6 +3,7 @@ include(FetchContent)
 option(ORT_USE_CUDA "Download and link ONNX Runtime GPU package" OFF)
 set(ORT_VER "1.18.0" CACHE STRING "ONNX Runtime version")
 set(ORT_URL_OVERRIDE "" CACHE STRING "Custom ONNX Runtime package URL")
+set(ORT_ARCHIVE_PATH "" CACHE FILEPATH "Local ONNX Runtime archive (.tgz)")
 
 # ── yaml-cpp ────────────────────────────────────
 message(STATUS "Fetching yaml-cpp...")
@@ -55,7 +56,12 @@ if(NOT TARGET onnxruntime)
         set(ORT_VARIANT "cpu")
     endif()
 
-    if(ORT_URL_OVERRIDE)
+    if(ORT_ARCHIVE_PATH)
+        if(NOT EXISTS "${ORT_ARCHIVE_PATH}")
+            message(FATAL_ERROR "ORT_ARCHIVE_PATH does not exist: ${ORT_ARCHIVE_PATH}")
+        endif()
+        set(ORT_URL "file://${ORT_ARCHIVE_PATH}")
+    elseif(ORT_URL_OVERRIDE)
         set(ORT_URL "${ORT_URL_OVERRIDE}")
     else()
         set(ORT_URL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_FOLDER}.tgz")
@@ -85,6 +91,14 @@ if(NOT TARGET onnxruntime)
 
     if(NOT EXISTS "${ORT_FINAL_LIB}")
         message(FATAL_ERROR "Could not find libonnxruntime.so in ${ORT_LIBDIR}")
+    endif()
+
+    if(ORT_USE_CUDA)
+        if(NOT EXISTS "${ORT_LIBDIR}/libonnxruntime_providers_cuda.so")
+            message(FATAL_ERROR
+                "ORT_USE_CUDA=ON but CUDA provider library not found in ${ORT_LIBDIR}. "
+                "The archive must be ONNX Runtime GPU package.")
+        endif()
     endif()
 
     add_library(onnxruntime SHARED IMPORTED GLOBAL)
