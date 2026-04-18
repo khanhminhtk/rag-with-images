@@ -3,6 +3,7 @@ package trainingfile
 import (
 	"context"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,7 +53,15 @@ func (uc *trainingFileUseCase) uploadArtifactsToMinio(ctx context.Context, uploa
 		if _, err := os.Stat(path); err != nil {
 			continue
 		}
-		ok, err := uc.UploadToMinio(ctx, uploadDir, "file://"+path)
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return uploaded, err
+		}
+		fileURL := (&url.URL{
+			Scheme: "file",
+			Path:   filepath.ToSlash(absPath),
+		}).String()
+		ok, err := uc.UploadToMinio(ctx, uploadDir, fileURL)
 		if err != nil {
 			return uploaded, err
 		}
