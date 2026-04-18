@@ -23,8 +23,11 @@ build:
         GIT_STRATEGY: clone
     script: 
         - cp -r ~/projects/mrag/tmp .
+        - find ~/projects/mrag/ai_sota_0022 -maxdepth 10
         - mkdir -p data/processed
+        - find data -maxdepth 10
         - cp -r ~/projects/mrag/ai_sota_0022 data/processed/
+        - find data -maxdepth 10
         - cp ~/envs/mrag/.env ./config/
         - cp -r ~/projects/mrag/model third_party/onnx_c++/
         - mkdir -p deploy/{bin,logs,third_party/onnx_c++}
