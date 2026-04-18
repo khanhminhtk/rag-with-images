@@ -66,6 +66,7 @@ test_e2e:
         - python3 -m venv .venv
         - source .venv/bin/activate
 
+        - sudo chown -R gitlab-runner:gitlab-runner .venv
         - python -m pip install --upgrade pip
         - python -m pip install fastapi uvicorn
         - rm -f fastapi_uplink_stream_log.log fastapi_uplink_test.pid
@@ -101,8 +102,8 @@ test_e2e:
             nohup bash -c "exec -a $process_name_test_processfile ./deploy/bin/processfile_service" > processfile_service_stream_log.log 2>&1 &
             echo $! > "$process_name_test_processfile.pid"
 
-            nohup bash -c "exec -a $process_name_test_fastapi_uplink ./.venv/bin/python ./fastapi_uplink.py" > fastapi_uplink_stream_log.log 2>&1 &
-            echo $! > "$process_name_test_fastapi_uplink.pid"
+            nohup ./.venv/bin/python ./fastapi_uplink.py > fastapi_uplink_stream_log.log 2>&1 &
+            echo $! > fastapi_uplink_test.pid
 
 
             sleep 10
