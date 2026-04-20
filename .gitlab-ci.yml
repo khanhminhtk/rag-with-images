@@ -3,11 +3,19 @@ variables:
     folder_project: /home/gitlab-runner/projects/mrag
     process_name_test_llm: llm_service_test
     process_name_dev_llm: llm_service_dev
+    process_name_dev_rag: rag_service_dev
+    process_name_dev_minio: minio_service_dev
+    process_name_dev_dlmodel: dlmodel_service_dev
+    process_name_dev_processfile: processfile_service_dev
+    process_name_dev_orchestrator: orchestrator_service_dev
     process_name_test_rag: rag_service_test
     process_name_test_minio: minio_service_test
     process_name_test_fastapi_uplink: fastapi_uplink_test
     process_name_test_dlmodel: dlmodel_service_test
     process_name_test_processfile: processfile_service_test
+    process_name_test_orchestrator: orchestrator_service_test
+    env_test: .env.test
+    env_dev: .env.dev
 
 stages:
     - build
@@ -30,7 +38,7 @@ build:
         - find data -maxdepth 10
         - mkdir -p data/download
         - mkdir -p data/process_file
-        - cp ~/envs/mrag/.env ./config/
+        - cp ~/envs/mrag/$env_test ./config/.env
         - cp -r ~/projects/mrag/model third_party/onnx_c++/
         - mkdir -p deploy/{bin,logs,third_party/onnx_c++}
         - cp -r config deploy/
@@ -63,6 +71,13 @@ build:
         - go build -o deploy/bin/processfile_service cmd/processfile_service/main.go
         - go build -o deploy/bin/rag_service cmd/rag_service/main.go
         - ls -a deploy/bin/
+    artifacts:
+        name: "build-${CI_COMMIT_SHORT_SHA}"
+        expire_in: 1 day
+        paths:
+            - deploy/
+            - data/
+            - config/
     tags:
         - gpu_1650ti
 
@@ -85,7 +100,9 @@ test_e2e:
     stage: test_e2e
     variables:
         GIT_STRATEGY: none
-    needs: ["build"]
+    needs:
+        - job: build
+          artifacts: true
     script:
         - python3 -m venv .venv
         - source .venv/bin/activate
@@ -97,8 +114,31 @@ test_e2e:
         - |
             set -e
 
+            if [ -f "./config/.env" ]; then
+                set -a
+                # shellcheck disable=SC1091
+                . "./config/.env"
+                set +a
+            fi
+
+            for required_var in \
+                LLM_SERVICE_PORT \
+                MINIO_SERVICE_PORT \
+                EMBEDDING_SERVICE_PORT \
+                RAG_SERVICE_PORT \
+                PROCESS_FILE_SERVICE_PORT \
+                ORCHESTRATOR_SERVICE_PORT
+            do
+                if [ -z "${!required_var:-}" ]; then
+                    echo "missing required env var: $required_var"
+                    exit 1
+                fi
+            done
+
+            APP_PORTS="$LLM_SERVICE_PORT $MINIO_SERVICE_PORT $EMBEDDING_SERVICE_PORT $RAG_SERVICE_PORT $PROCESS_FILE_SERVICE_PORT $ORCHESTRATOR_SERVICE_PORT"
+
             cleanup_ports() {
-                for p in 50051 50052 50053 50054 50055 8080 9000 9001 9092 6333 6334; do
+                for p in $APP_PORTS; do
                     pids="$(ss -ltnp 2>/dev/null | sed -n "s/.*:${p} .*pid=\([0-9]\+\).*/\1/p" | sort -u)"
                     if [ -n "$pids" ]; then
                         echo "[cleanup] port $p -> kill $pids"
@@ -114,6 +154,7 @@ test_e2e:
                     "$process_name_test_minio" \
                     "$process_name_test_dlmodel" \
                     "$process_name_test_processfile" \
+                    "$process_name_test_orchestrator" \
                     "fastapi_uplink.py"
                 do
                     pids="$(pgrep -f "$proc_name" || true)"
@@ -131,12 +172,13 @@ test_e2e:
                 [ -f "$process_name_test_fastapi_uplink.pid" ] && kill -9 "$(cat "$process_name_test_fastapi_uplink.pid")" 2>/dev/null || true
                 [ -f "$process_name_test_dlmodel.pid" ] && kill -9 "$(cat "$process_name_test_dlmodel.pid")" 2>/dev/null || true
                 [ -f "$process_name_test_processfile.pid" ] && kill -9 "$(cat "$process_name_test_processfile.pid")" 2>/dev/null || true
+                [ -f "$process_name_test_orchestrator.pid" ] && kill -9 "$(cat "$process_name_test_orchestrator.pid")" 2>/dev/null || true
             }
 
             trap cleanup EXIT
             cleanup_ports
             cleanup_named_processes
-            rm -f "$process_name_test_llm.pid" "$process_name_test_rag.pid" "$process_name_test_minio.pid" "$process_name_test_fastapi_uplink.pid" "$process_name_test_dlmodel.pid" "$process_name_test_processfile.pid"
+            rm -f "$process_name_test_llm.pid" "$process_name_test_rag.pid" "$process_name_test_minio.pid" "$process_name_test_fastapi_uplink.pid" "$process_name_test_dlmodel.pid" "$process_name_test_processfile.pid" "$process_name_test_orchestrator.pid"
             sleep 1
 
             nohup bash -c "exec -a $process_name_test_llm ./deploy/bin/llm_service" > llm_service_stream_log.log 2>&1 &
@@ -153,6 +195,9 @@ test_e2e:
 
             nohup bash -c "exec -a $process_name_test_processfile ./deploy/bin/processfile_service" > processfile_service_stream_log.log 2>&1 &
             echo $! > "$process_name_test_processfile.pid"
+
+            nohup bash -c "exec -a $process_name_test_orchestrator ./deploy/bin/orchestrator_service" > orchestrator_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_test_orchestrator.pid"
 
             nohup ./.venv/bin/python ./fastapi_uplink.py > fastapi_uplink_stream_log.log 2>&1 &
             echo $! > fastapi_uplink_test.pid
@@ -174,6 +219,12 @@ test_e2e:
             ./test_cases/dlmodel_service_test_embedding_text.sh
             ./test_cases/dlmodel_service_test_embedding_image.sh
             ./test_cases/processfile_service_test_process_and_ingest.sh
+            ./test_cases/orchestrator_service_test_healthz.sh
+            ./test_cases/orchestrator_service_test_vectordb_createcollection.sh
+            ./test_cases/orchestrator_service_test_chat.sh
+            ./test_cases/orchestrator_service_test_process_and_ingest.sh
+            ./test_cases/orchestrator_service_test_vectordb_deletefilter.sh
+            ./test_cases/orchestrator_service_test_vectordb_deletecollection.sh
 
     tags:
         - gpu_1650ti
@@ -182,27 +233,135 @@ deploy:
     stage: deploy
     variables:
         GIT_STRATEGY: none
-    needs: ["test_e2e"]
+    needs:
+        - job: build
+          artifacts: true
+        - job: test_e2e
     script:
         - rm -rf "$folder_project/deploy"
+        - rm -rf deploy/config/.env
+        - cp ~/envs/mrag/$env_dev deploy/config/.env
         - cp -r deploy "$folder_project/"
         - cp -r data "$folder_project/deploy"
         - cd "$folder_project/deploy"
-        - kill -9 "$(cat "$process_name_dev_llm.pid")" 2>/dev/null || true
-        - nohup bash -c "exec -a $process_name_dev_llm ./bin/llm_service" > llm_stream_log.log 2>&1 & echo $! > "$process_name_dev_llm.pid"
         - |
-            for i in $(seq 1 15); do
-              pid="$(ps -ef | awk '/[l]lm_service_dev/ {print $2}')"
-              if [ -n "$pid" ]; then
-                echo "llm_service_dev started with pid: $pid"
-                exit 0
+            set -e
+
+            if [ -f "./config/.env" ]; then
+              set -a
+              # shellcheck disable=SC1091
+              . "./config/.env"
+              set +a
+            fi
+
+            for required_var in \
+              LLM_SERVICE_PORT \
+              MINIO_SERVICE_PORT \
+              EMBEDDING_SERVICE_PORT \
+              RAG_SERVICE_PORT \
+              PROCESS_FILE_SERVICE_PORT \
+              ORCHESTRATOR_SERVICE_PORT
+            do
+              if [ -z "${!required_var:-}" ]; then
+                echo "missing required env var: $required_var"
+                exit 1
               fi
-              echo "waiting for llm_service_dev... ($i/15)"
-              sleep 2
             done
-            echo "llm_service_dev failed to stay running"
-            cat llm_stream_log.log || true
-            exit 1
+
+            APP_PORTS="$LLM_SERVICE_PORT $MINIO_SERVICE_PORT $EMBEDDING_SERVICE_PORT $RAG_SERVICE_PORT $PROCESS_FILE_SERVICE_PORT $ORCHESTRATOR_SERVICE_PORT"
+
+            cleanup_ports() {
+              for p in $APP_PORTS; do
+                pids="$(ss -ltnp 2>/dev/null | sed -n "s/.*:${p} .*pid=\([0-9]\+\).*/\1/p" | sort -u)"
+                if [ -n "$pids" ]; then
+                  echo "[cleanup] port $p -> kill $pids"
+                  kill -9 $pids 2>/dev/null || true
+                fi
+              done
+            }
+
+            cleanup_named_processes() {
+              for proc_name in \
+                "$process_name_dev_llm" \
+                "$process_name_dev_rag" \
+                "$process_name_dev_minio" \
+                "$process_name_dev_dlmodel" \
+                "$process_name_dev_processfile" \
+                "$process_name_dev_orchestrator"
+              do
+                pids="$(pgrep -f "$proc_name" || true)"
+                if [ -n "$pids" ]; then
+                  echo "[cleanup] process $proc_name -> kill $pids"
+                  kill -9 $pids 2>/dev/null || true
+                fi
+              done
+            }
+
+            cleanup_pid_files() {
+              for proc_name in \
+                "$process_name_dev_llm" \
+                "$process_name_dev_rag" \
+                "$process_name_dev_minio" \
+                "$process_name_dev_dlmodel" \
+                "$process_name_dev_processfile" \
+                "$process_name_dev_orchestrator"
+              do
+                [ -f "$proc_name.pid" ] && kill -9 "$(cat "$proc_name.pid")" 2>/dev/null || true
+              done
+              rm -f \
+                "$process_name_dev_llm.pid" \
+                "$process_name_dev_rag.pid" \
+                "$process_name_dev_minio.pid" \
+                "$process_name_dev_dlmodel.pid" \
+                "$process_name_dev_processfile.pid" \
+                "$process_name_dev_orchestrator.pid"
+            }
+
+            wait_service_started() {
+              proc_name="$1"
+              log_file="$2"
+              for i in $(seq 1 15); do
+                pid="$(pgrep -f "$proc_name" || true)"
+                if [ -n "$pid" ]; then
+                  echo "$proc_name started with pid: $pid"
+                  return 0
+                fi
+                echo "waiting for $proc_name... ($i/15)"
+                sleep 2
+              done
+              echo "$proc_name failed to stay running"
+              cat "$log_file" || true
+              return 1
+            }
+
+            cleanup_ports
+            cleanup_named_processes
+            cleanup_pid_files
+            sleep 1
+
+            nohup bash -c "exec -a $process_name_dev_llm ./bin/llm_service" > llm_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_dev_llm.pid"
+            wait_service_started "$process_name_dev_llm" llm_service_stream_log.log
+
+            nohup bash -c "exec -a $process_name_dev_rag ./bin/rag_service" > rag_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_dev_rag.pid"
+            wait_service_started "$process_name_dev_rag" rag_service_stream_log.log
+
+            nohup bash -c "exec -a $process_name_dev_minio ./bin/minio_service" > minio_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_dev_minio.pid"
+            wait_service_started "$process_name_dev_minio" minio_service_stream_log.log
+
+            nohup bash -c "exec -a $process_name_dev_dlmodel ./bin/dlmodel_service" > dlmodel_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_dev_dlmodel.pid"
+            wait_service_started "$process_name_dev_dlmodel" dlmodel_service_stream_log.log
+
+            nohup bash -c "exec -a $process_name_dev_processfile ./bin/processfile_service" > processfile_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_dev_processfile.pid"
+            wait_service_started "$process_name_dev_processfile" processfile_service_stream_log.log
+
+            nohup bash -c "exec -a $process_name_dev_orchestrator ./bin/orchestrator_service" > orchestrator_service_stream_log.log 2>&1 &
+            echo $! > "$process_name_dev_orchestrator.pid"
+            wait_service_started "$process_name_dev_orchestrator" orchestrator_service_stream_log.log
     when: manual
     tags:
         - gpu_1650ti
@@ -213,7 +372,33 @@ checklog:
         GIT_STRATEGY: none
     needs: ["deploy"]
     script:
-        - cd $folder_project
-        - tail -n 200 deploy/logs/llm_service.log 
+        - cd "$folder_project/deploy"
+        - |
+            set -e
+
+            tail_log() {
+              file="$1"
+              echo "===== tail: $file ====="
+              if [ -f "$file" ]; then
+                tail -n 200 "$file"
+              else
+                echo "missing: $file"
+              fi
+              echo
+            }
+
+            tail_log "logs/llm_service.log"
+            tail_log "logs/rag_service.log"
+            tail_log "logs/minio_service.log"
+            tail_log "logs/embedding_service.log"
+            tail_log "logs/processfile_service.log"
+            tail_log "logs/orchestrator_service.log"
+
+            tail_log "llm_service_stream_log.log"
+            tail_log "rag_service_stream_log.log"
+            tail_log "minio_service_stream_log.log"
+            tail_log "dlmodel_service_stream_log.log"
+            tail_log "processfile_service_stream_log.log"
+            tail_log "orchestrator_service_stream_log.log"
     tags:
         - gpu_1650ti
