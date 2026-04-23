@@ -53,63 +53,96 @@ services:
       KAFKA_CFG_INTER_BROKER_LISTENER_NAME: ${KAFKA_CFG_INTER_BROKER_LISTENER_NAME:-PLAINTEXT}
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CFG_CONTROLLER_QUORUM_VOTERS:-0@kafka:9093}
 
-#   grafana:
-#     image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
-#     container_name: ${GRAFANA_CONTAINER_NAME:-monitoring_grafana}
-#     restart: ${GRAFANA_RESTART:-unless-stopped}
-#     ports:
-#       - "${GRAFANA_PORT:-3000}:3000"
-#     environment:
-#       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-#       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-#       GF_USERS_ALLOW_SIGN_UP: "false"
-#       GF_PATHS_DATA: /tmp/grafana_data 
-#     volumes:
-#       - ${GRAFANA_DATA_VOLUME:-grafana-data}:/tmp/grafana_data
-#       - ${GRAFANA_PROVISIONING_DIR:-./monitoring/grafana/provisioning}:/etc/grafana/provisioning:ro
-#     depends_on:
-#       - prometheus
-#       - loki
-#       - jaeger
-#     networks:
-#       - monitoring
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    container_name: ${GRAFANA_CONTAINER_NAME:-monitoring_grafana}
+    restart: ${GRAFANA_RESTART:-unless-stopped}
+    user: "0:0"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_DATA: /var/lib/grafana
+    volumes:
+      - ${GRAFANA_DATA_VOLUME:-grafana-data}:/var/lib/grafana
+      - ${GRAFANA_PROVISIONING_DIR:-./monitoring/grafana/provisioning}:/etc/grafana/provisioning:ro
+    command: >
+      sh -euc 'mkdir -p /var/lib/grafana && chown -R 472:472 /var/lib/grafana && exec /run.sh'
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - monitoring
 
-#   loki:
-#     image: ${LOKI_IMAGE:-grafana/loki:2.9.4}
-#     container_name: ${LOKI_CONTAINER_NAME:-monitoring_loki}
-#     restart: ${LOKI_RESTART:-unless-stopped}
-#     command: ["-config.file=/etc/loki/loki-config.yml"]
-#     ports:
-#       - "${LOKI_BIND_HOST:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
-#     volumes:
-#       - ${LOKI_CONFIG_FILE:-./monitoring/loki/loki-config.yml}:/etc/loki/loki-config.yml:ro
-#       - ${LOKI_DATA_VOLUME:-loki-data}:/tmp/loki
-#       - ${LOKI_WAL_VOLUME:-loki-wal}:/tmp/loki/wal
-#     networks:
-#       - monitoring
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:2.9.4}
+    container_name: ${LOKI_CONTAINER_NAME:-monitoring_loki}
+    restart: ${LOKI_RESTART:-unless-stopped}
+    command: ["-config.file=/etc/loki/loki-config.yml", "-config.expand-env=true"]
+    environment:
+      LOKI_HTTP_LISTEN_PORT: ${LOKI_PORT:-3100}
+      LOKI_LOG_LEVEL: ${LOKI_LOG_LEVEL:-info}
+      LOKI_WAL_DIR: ${LOKI_WAL_DIR:-/tmp/loki/wal}
+      LOKI_INDEX_DIR: ${LOKI_INDEX_DIR:-/tmp/loki/index}
+      LOKI_CACHE_DIR: ${LOKI_CACHE_DIR:-/tmp/loki/cache}
+      LOKI_CHUNKS_DIR: ${LOKI_CHUNKS_DIR:-/tmp/loki/chunks}
+      LOKI_COMPACTOR_DIR: ${LOKI_COMPACTOR_DIR:-/tmp/loki/boltdb-shipper-compactor}
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-720h}
+    ports:
+      - "${LOKI_BIND_HOST:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ${LOKI_CONFIG_FILE:-./monitoring/loki/loki-config.yaml}:/etc/loki/loki-config.yml:ro
+      - ${LOKI_DATA_VOLUME:-loki-data}:/tmp/loki
+      - ${LOKI_WAL_VOLUME:-loki-wal}:/tmp/loki/wal
+    networks:
+      - monitoring
 
-#   promtail:
-#     image: ${PROMTAIL_IMAGE:-grafana/promtail:2.9.4}
-#     container_name: ${PROMTAIL_CONTAINER_NAME:-monitoring_promtail}
-#     restart: ${PROMTAIL_RESTART:-unless-stopped}
-#     user: "${PROMTAIL_USER:-root}"
-#     command: ["-config.file=/etc/promtail/promtail-config.yml"]
-#     environment:
-#       APP_ENV: ${APP_ENV:-dev}
-#     volumes:
-#       - ${PROMTAIL_CONFIG_FILE:-./monitoring/promtail/promtail-config.yml}:/etc/promtail/promtail-config.yml:ro
-#       - ${CHATBOT_LOG_DIR:-./logs}:/var/log/chatbot:ro
-#       - ${PROMTAIL_STATE_DIR:-/tmp/promtail}:/tmp/promtail 
-#     depends_on:
-#       - loki
-#     networks:
-#       - monitoring
+  promtail:
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:2.9.4}
+    container_name: ${PROMTAIL_CONTAINER_NAME:-monitoring_promtail}
+    restart: ${PROMTAIL_RESTART:-unless-stopped}
+    user: "${PROMTAIL_USER:-root}"
+    command: ["-config.file=/etc/promtail/promtail-config.yml", "-config.expand-env=true"]
+    environment:
+      PROMTAIL_HTTP_LISTEN_PORT: ${PROMTAIL_HTTP_LISTEN_PORT:-9080}
+      PROMTAIL_POSITIONS_FILE: ${PROMTAIL_POSITIONS_FILE:-/tmp/positions.yaml}
+      PROMTAIL_PUSH_URL: ${PROMTAIL_PUSH_URL:-http://loki:3100/loki/api/v1/push}
+      PROMTAIL_JOB_NAME: ${PROMTAIL_JOB_NAME:-app_logs}
+      PROMTAIL_SERVICE_NAME: ${PROMTAIL_SERVICE_NAME:-rag_imtotext_texttoim}
+      PROMTAIL_LOG_PATH: ${PROMTAIL_LOG_PATH:-/var/log/chatbot/*.log}
+      APP_ENV: ${APP_ENV:-dev}
+    volumes:
+      - ${PROMTAIL_CONFIG_FILE:-./monitoring/promtail/promtail-config.yaml}:/etc/promtail/promtail-config.yml:ro
+      - ${CHATBOT_LOG_DIR:-./logs}:/var/log/chatbot:ro
+      - ${PROMTAIL_STATE_DIR:-/tmp/promtail}:/tmp/promtail 
+    depends_on:
+      - loki
+    networks:
+      - monitoring
 
-# volumes:
-#   grafana-data:
-#   loki-data:
-#   loki-wal:
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    container_name: ${PROMETHEUS_CONTAINER_NAME:-monitoring_prometheus}
+    restart: ${PROMETHEUS_RESTART:-unless-stopped}
+    user: "${PROMETHEUS_USER:-root}"
+    ports:
+      - "${PROMETHEUS_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ${PROMETHEUS_CONFIG_FILE:-./monitoring/prometheus/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
+      - ${PROMETHEUS_DATA_VOLUME:-prometheus-data}:/prometheus
+    extra_hosts:
+      - "${PROMETHEUS_EXTRA_HOST:-host.docker.internal:host-gateway}"
+    networks:
+      - monitoring
 
-# networks:
-#   monitoring:
-#     driver: bridge
+volumes:
+  grafana-data:
+  loki-data:
+  loki-wal:
+  prometheus-data:
+
+networks:
+  monitoring:
+    driver: bridge
