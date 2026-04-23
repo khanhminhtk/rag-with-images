@@ -51,10 +51,13 @@ type PreProcessing struct {
 }
 
 type LLMSettings struct {
-	Model  string  `yaml:"model"`
-	Temp   float32 `yaml:"temp"`
-	ApiKey string  `yaml:"apikey"`
-	Port   string  `yaml:"port"`
+	IdGRPC         string  `yaml:"id_grpc"`
+	IdMonitoring   string  `yaml:"id_monitoring"`
+	Model          string  `yaml:"model"`
+	Temp           float32 `yaml:"temp"`
+	ApiKey         string  `yaml:"apikey"`
+	Port           string  `yaml:"port"`
+	PortMetricGRPC string  `yaml:"port_metric_grpc"`
 }
 
 type QdrantConfig struct {
@@ -69,6 +72,8 @@ type MinIOSettings struct {
 	AccessKey      string            `yaml:"access_key"`
 	SecretKey      string            `yaml:"secret_key"`
 	UseSSL         bool              `yaml:"use_ssl"`
+	IDMonitoring   string            `yaml:"id_monitoring"`
+	PortMetricGRPC string            `yaml:"port_metric_grpc"`
 	DefaultBucket  string            `yaml:"default_bucket"`
 	Buckets        map[string]string `yaml:"buckets"`
 	Region         string            `yaml:"region"`
@@ -89,6 +94,8 @@ type KafkaConfig struct {
 
 type EmbeddingSettings struct {
 	Port           string          `yaml:"port"`
+	IDMonitoring   string          `yaml:"id_monitoring"`
+	PortMetricGRPC string          `yaml:"port_metric_grpc"`
 	LogPath        string          `yaml:"log_path"`
 	JinaConfigPath string          `yaml:"jina_config_path"`
 	Topics         EmbeddingTopics `yaml:"topics"`
@@ -114,6 +121,9 @@ type RAGSettings struct {
 	QdrantRetryBackoffMs        int    `yaml:"qdrant_retry_backoff_ms"`
 	GRPCHost                    string `yaml:"rag_grpc_host"`
 	GRPCPort                    string `yaml:"rag_grpc_port"`
+	IDGRPC                      string `yaml:"rag_id_grpc"`
+	IDMonitoring                string `yaml:"rag_id_monitoring"`
+	PortMetricGRPC              string `yaml:"rag_port_metric_grpc"`
 }
 
 type FileTrainingTopics struct {
@@ -124,6 +134,8 @@ type FileTrainingTopics struct {
 
 type FileTrainingSettings struct {
 	Port                        string             `yaml:"port"`
+	IDMonitoring                string             `yaml:"id_monitoring"`
+	PortMetricGRPC              string             `yaml:"port_metric_grpc"`
 	LogPath                     string             `yaml:"log_path"`
 	BatchSize                   int                `yaml:"batch_size"`
 	MarkerDevMode               bool               `yaml:"marker_dev_mode"`
