@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -13,27 +13,27 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 
-	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
 	kafkaAdapter "rag_imagetotext_texttoimage/internal/adapter/kafka"
+	"rag_imagetotext_texttoimage/internal/application/dtos"
 	"rag_imagetotext_texttoimage/internal/application/ports"
 	"rag_imagetotext_texttoimage/internal/infra/cgo"
-	infraKafka "rag_imagetotext_texttoimage/internal/infra/kafka"
+	"rag_imagetotext_texttoimage/internal/infra/monitoring"
 	"rag_imagetotext_texttoimage/internal/util"
-	pb "rag_imagetotext_texttoimage/proto"
 )
 
 type DLModelApp struct {
-	cfg        *util.Config
-	logger     util.Logger
-	jinaConfig *dlmodelJinaRuntimeConfig
-	jina       *cgo.JinaAdapter
-	producer   *kafkaAdapter.ProducerAdapter
-	consumer   *kafkaAdapter.ConsumerAdapter
-	topics     util.EmbeddingTopics
-	grpcServer *grpc.Server
-	listener   net.Listener
+	cfg          *util.Config
+	logger       util.Logger
+	jinaConfig   *dlmodelJinaRuntimeConfig
+	jina         *cgo.JinaAdapter
+	producer     *kafkaAdapter.ProducerAdapter
+	consumer     *kafkaAdapter.ConsumerAdapter
+	topics       util.EmbeddingTopics
+	grpcServer   *grpc.Server
+	listener     net.Listener
+	metricsSrv   *http.Server
+	metricsKafka *monitoring.Metrics
 }
 
 type dlmodelKafkaInfra struct {
@@ -53,143 +53,18 @@ func NewDLModelApp() (*DLModelApp, error) {
 	kafkaInfraKey := registry.Key("kafka.infra")
 	grpcServerKey := registry.Key("grpc.server")
 	listenerKey := registry.Key("grpc.listener")
+	metricsHTTPKey := registry.Key("metrics.http_server")
 
-	if err := registry.RegisterSingleton(configKey, func(_ Resolver) (any, error) {
-		loader := util.NewConfigLoader(ProjectPath("config", ".env"), ProjectPath("config", "config.yaml"))
-		return loader.Load()
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := registry.RegisterSingleton(loggerKey, func(r Resolver) (any, error) {
-		return util.NewFileLogger(ProjectPath("logs", "embedding_service.log"), slog.LevelInfo)
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := registry.RegisterSingleton(jinaRuntimeKey, func(r Resolver) (any, error) {
-		cfg, err := ResolveAs[*util.Config](r, configKey)
-		if err != nil {
-			return nil, err
-		}
-		logger, err := ResolveAs[util.Logger](r, loggerKey)
-		if err != nil {
-			return nil, err
-		}
-		resolvedJinaConfigPath, err := resolveJinaConfigPath(strings.TrimSpace(cfg.EmbeddingService.JinaConfigPath))
-		if err != nil {
-			logger.Error("failed to resolve jina config path", err, "config_path", cfg.EmbeddingService.JinaConfigPath)
-			return nil, err
-		}
-		runtimeConfigPath, cleanup, err := prepareJinaRuntime(resolvedJinaConfigPath)
-		if err != nil {
-			logger.Error("failed to prepare jina runtime", err, "resolved_config_path", resolvedJinaConfigPath)
-			return nil, err
-		}
-		if err := validateJinaRuntimeConfig(runtimeConfigPath); err != nil {
-			cleanup()
-			logger.Error("invalid jina runtime config", err, "config_path", runtimeConfigPath)
-			return nil, err
-		}
-		return &dlmodelJinaRuntimeConfig{path: runtimeConfigPath, cleanup: cleanup}, nil
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := registry.RegisterSingleton(jinaAdapterKey, func(r Resolver) (any, error) {
-		logger, err := ResolveAs[util.Logger](r, loggerKey)
-		if err != nil {
-			return nil, err
-		}
-		runtimeCfg, err := ResolveAs[*dlmodelJinaRuntimeConfig](r, jinaRuntimeKey)
-		if err != nil {
-			return nil, err
-		}
-		jina, err := cgo.NewJinaAdapter(runtimeCfg.path, logger)
-		if err != nil {
-			return nil, err
-		}
-		logger.Info("jina adapter ready", "runtime_config_path", runtimeCfg.path)
-		return jina, nil
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := registry.RegisterSingleton(topicsKey, func(r Resolver) (any, error) {
-		cfg, err := ResolveAs[*util.Config](r, configKey)
-		if err != nil {
-			return nil, err
-		}
-		return buildEmbeddingTopics(cfg.EmbeddingService.Topics)
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := registry.RegisterSingleton(kafkaInfraKey, func(r Resolver) (any, error) {
-		cfg, err := ResolveAs[*util.Config](r, configKey)
-		if err != nil {
-			return nil, err
-		}
-		logger, err := ResolveAs[util.Logger](r, loggerKey)
-		if err != nil {
-			return nil, err
-		}
-		producer, consumer, err := kafkaAdapter.NewInfraAdapters(kafkaAdapter.InfraAdapterConfig{
-			Brokers:     cfg.Kafka.Brokers,
-			DialTimeout: 10 * time.Second,
-			Publisher:   infraKafka.PublisherConfig{RequiredAcks: -1},
-			Consumer: infraKafka.ConsumerConfig{
-				MinBytes:       1,
-				MaxBytes:       10e6,
-				CommitInterval: time.Second,
-				StartOffset:    -2,
-			},
-		}, logger)
-		if err != nil {
-			return nil, err
-		}
-		return dlmodelKafkaInfra{producer: producer, consumer: consumer}, nil
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := registry.RegisterSingleton(grpcServerKey, func(r Resolver) (any, error) {
-		logger, err := ResolveAs[util.Logger](r, loggerKey)
-		if err != nil {
-			return nil, err
-		}
-		jina, err := ResolveAs[*cgo.JinaAdapter](r, jinaAdapterKey)
-		if err != nil {
-			return nil, err
-		}
-		embeddingService := grpcAdapter.NewEmbeddingService(logger, jina)
-		grpcServer := grpc.NewServer(
-			grpc.MaxRecvMsgSize(30*1024*1024),
-			grpc.MaxSendMsgSize(30*1024*1024),
-		)
-		pb.RegisterDeepLearningServiceServer(grpcServer, embeddingService)
-		reflection.Register(grpcServer)
-		logger.Info("embedding grpc reflection enabled")
-		return grpcServer, nil
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := registry.RegisterSingleton(listenerKey, func(r Resolver) (any, error) {
-		cfg, err := ResolveAs[*util.Config](r, configKey)
-		if err != nil {
-			return nil, err
-		}
-		logger, err := ResolveAs[util.Logger](r, loggerKey)
-		if err != nil {
-			return nil, err
-		}
-		lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.EmbeddingService.Port))
-		if err != nil {
-			logger.Error("failed to listen grpc port", err, "port", cfg.EmbeddingService.Port)
-			return nil, err
-		}
-		return lis, nil
+	if err := registerDLModelBindings(container, dlmodelBindingKeys{
+		ConfigKey:      configKey,
+		LoggerKey:      loggerKey,
+		JinaRuntimeKey: jinaRuntimeKey,
+		JinaAdapterKey: jinaAdapterKey,
+		TopicsKey:      topicsKey,
+		KafkaInfraKey:  kafkaInfraKey,
+		GRPCServerKey:  grpcServerKey,
+		ListenerKey:    listenerKey,
+		MetricsHTTPKey: metricsHTTPKey,
 	}); err != nil {
 		return nil, err
 	}
@@ -245,19 +120,30 @@ func NewDLModelApp() (*DLModelApp, error) {
 		logger.Close()
 		return nil, err
 	}
+	metricsSrv, err := ResolveAs[*http.Server](container, metricsHTTPKey)
+	if err != nil {
+		_ = kafkaInfra.producer.Close()
+		_ = kafkaInfra.consumer.Close()
+		jina.Close()
+		jinaCfg.cleanup()
+		logger.Close()
+		return nil, err
+	}
 
-	logger.Info("embedding service bootstrap started", "grpc_port", cfg.EmbeddingService.Port, "log_path", ProjectPath("logs", "embedding_service.log"), "jina_config_path", cfg.EmbeddingService.JinaConfigPath)
+	logger.Info("dlmodel service bootstrap started", "grpc_port", cfg.EmbeddingService.Port, "log_path", ProjectPath("logs", "dlmodel_service.log"), "jina_config_path", cfg.EmbeddingService.JinaConfigPath)
 
 	return &DLModelApp{
-		cfg:        cfg,
-		logger:     logger,
-		jinaConfig: jinaCfg,
-		jina:       jina,
-		producer:   kafkaInfra.producer,
-		consumer:   kafkaInfra.consumer,
-		topics:     topics,
-		grpcServer: grpcServer,
-		listener:   lis,
+		cfg:          cfg,
+		logger:       logger,
+		jinaConfig:   jinaCfg,
+		jina:         jina,
+		producer:     kafkaInfra.producer,
+		consumer:     kafkaInfra.consumer,
+		topics:       topics,
+		grpcServer:   grpcServer,
+		listener:     lis,
+		metricsSrv:   metricsSrv,
+		metricsKafka: monitoring.NewMetrics(),
 	}, nil
 }
 
@@ -272,9 +158,20 @@ func (a *DLModelApp) Run() error {
 
 	grpcErrCh := make(chan error, 1)
 	go func() {
-		a.logger.Info("embedding grpc server listening", "port", a.cfg.EmbeddingService.Port)
+		a.logger.Info("dlmodel service grpc server listening", "port", a.cfg.EmbeddingService.Port)
 		if serveErr := a.grpcServer.Serve(a.listener); serveErr != nil {
 			grpcErrCh <- serveErr
+		}
+	}()
+
+	metricsErrCh := make(chan error, 1)
+	go func() {
+		if a.metricsSrv == nil {
+			return
+		}
+		a.logger.Info("dlmodel service metrics server listening", "addr", a.metricsSrv.Addr)
+		if serveErr := a.metricsSrv.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
+			metricsErrCh <- serveErr
 		}
 	}()
 
@@ -287,6 +184,10 @@ func (a *DLModelApp) Run() error {
 	case err := <-grpcErrCh:
 		if err != nil {
 			a.logger.Error("grpc server stopped with error", err)
+		}
+	case err := <-metricsErrCh:
+		if err != nil {
+			a.logger.Error("metrics server stopped with error", err)
 		}
 	case err := <-batchTextErrCh:
 		if err != nil {
@@ -303,6 +204,11 @@ func (a *DLModelApp) Run() error {
 	cancel()
 	waitConsumerStopped(batchTextErrCh, "batch_text", a.logger, 15*time.Second)
 	waitConsumerStopped(batchImageErrCh, "batch_image", a.logger, 15*time.Second)
+	if a.metricsSrv != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = a.metricsSrv.Shutdown(shutdownCtx)
+		shutdownCancel()
+	}
 	a.grpcServer.GracefulStop()
 	a.logger.Info("service stopped")
 	return nil
@@ -346,15 +252,20 @@ func buildEmbeddingTopics(raw util.EmbeddingTopics) (util.EmbeddingTopics, error
 	return topics, nil
 }
 
-func (a *DLModelApp) handleBatchText(ctx context.Context, msg ports.ConsumeMessage) error {
-	startedAt := time.Now()
-	var request struct {
-		Texts []string `json:"texts"`
-	}
+func (a *DLModelApp) handleBatchText(ctx context.Context, msg ports.ConsumeMessage) (handlerErr error) {
+	handlerName := "embed_batch_text"
+	telemetry := newKafkaHandlerTelemetry(a.metricsKafka, a.logger, msg, handlerName, "panic recovered in dlmodel batch text handler")
+	telemetry.start()
+	defer telemetry.done()
+	defer telemetry.recover(&handlerErr)
+
+	var request dtos.EmbedBatchTextRequest
 	if err := json.Unmarshal(msg.Message.Value, &request); err != nil {
-		a.logger.Error("invalid batch text payload", err, "topic", msg.Topic, "offset", msg.Offset)
+		telemetry.observe("invalid_payload")
+		a.logger.Error("internal.bootstrap.DLModelApp.handleBatchText invalid batch text payload", err, "topic", msg.Topic, "offset", msg.Offset)
 		return nil
 	}
+
 	embeddings, runErr := a.jina.EmbedBatchText(request.Texts)
 	status := "success"
 	message := "batch text embedding completed"
@@ -365,6 +276,7 @@ func (a *DLModelApp) handleBatchText(ctx context.Context, msg ports.ConsumeMessa
 	if runErr != nil {
 		status = "failed"
 		message = runErr.Error()
+		telemetry.observe("failed")
 		a.logger.Error("batch text embedding failed", runErr, "topic", msg.Topic, "offset", msg.Offset)
 	}
 	if a.topics.BatchTextResult != "" {
@@ -377,22 +289,27 @@ func (a *DLModelApp) handleBatchText(ctx context.Context, msg ports.ConsumeMessa
 			"at":         time.Now().UTC().Format(time.RFC3339),
 		}, map[string]string{"source_topic": a.topics.BatchTextRequest})
 		if publishErr != nil {
+			telemetry.retry("publish_error")
 			a.logger.Error("publish batch text result failed", publishErr, "result_topic", a.topics.BatchTextResult)
 		}
 	}
-	a.logger.Info("batch text pipeline completed", "topic", msg.Topic, "status", status, "count", len(request.Texts), "dimension", dimension, "latency_ms", time.Since(startedAt).Milliseconds())
+	if status == "success" {
+		telemetry.observe("success")
+	}
+	a.logger.Info("batch text pipeline completed", "topic", msg.Topic, "status", status, "count", len(request.Texts), "dimension", dimension, "latency_ms", time.Since(telemetry.startedAt).Milliseconds())
 	return nil
 }
 
-func (a *DLModelApp) handleBatchImage(ctx context.Context, msg ports.ConsumeMessage) error {
-	startedAt := time.Now()
-	var request struct {
-		Images   [][]byte `json:"images"`
-		Width    int      `json:"width"`
-		Height   int      `json:"height"`
-		Channels int      `json:"channels"`
-	}
+func (a *DLModelApp) handleBatchImage(ctx context.Context, msg ports.ConsumeMessage) (handlerErr error) {
+	handlerName := "embed_batch_image"
+	telemetry := newKafkaHandlerTelemetry(a.metricsKafka, a.logger, msg, handlerName, "panic recovered in dlmodel batch image handler")
+	telemetry.start()
+	defer telemetry.done()
+	defer telemetry.recover(&handlerErr)
+
+	var request dtos.EmbedBatchImageRequest
 	if err := json.Unmarshal(msg.Message.Value, &request); err != nil {
+		telemetry.observe("invalid_payload")
 		a.logger.Error("invalid batch image payload", err, "topic", msg.Topic, "offset", msg.Offset)
 		return nil
 	}
@@ -406,6 +323,7 @@ func (a *DLModelApp) handleBatchImage(ctx context.Context, msg ports.ConsumeMess
 	if runErr != nil {
 		status = "failed"
 		message = runErr.Error()
+		telemetry.observe("failed")
 		a.logger.Error("batch image embedding failed", runErr, "topic", msg.Topic, "offset", msg.Offset)
 	}
 	if a.topics.BatchImageResult != "" {
@@ -418,9 +336,13 @@ func (a *DLModelApp) handleBatchImage(ctx context.Context, msg ports.ConsumeMess
 			"at":         time.Now().UTC().Format(time.RFC3339),
 		}, map[string]string{"source_topic": a.topics.BatchImageRequest})
 		if publishErr != nil {
+			telemetry.retry("publish_error")
 			a.logger.Error("publish batch image result failed", publishErr, "result_topic", a.topics.BatchImageResult)
 		}
 	}
-	a.logger.Info("batch image pipeline completed", "topic", msg.Topic, "status", status, "count", len(request.Images), "dimension", dimension, "latency_ms", time.Since(startedAt).Milliseconds())
+	if status == "success" {
+		telemetry.observe("success")
+	}
+	a.logger.Info("batch image pipeline completed", "topic", msg.Topic, "status", status, "count", len(request.Images), "dimension", dimension, "latency_ms", time.Since(telemetry.startedAt).Milliseconds())
 	return nil
 }
