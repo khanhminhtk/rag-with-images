@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+  - job_name: llm_service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9101"]
+  - job_name: rag_service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9102"]
+  - job_name: embedding_service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9103"]
+  - job_name: minio_service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9104"]
+  - job_name: process_file_service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9105"]
+

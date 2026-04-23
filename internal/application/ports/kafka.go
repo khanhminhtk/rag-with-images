@@ -17,6 +17,7 @@ type ConsumeMessage struct {
 	Topic     string
 	Partition int
 	Offset    int64
+	Lag       int64
 	Message   KafkaMessage
 }
 

@@ -1,7 +1,7 @@
 auth_enabled: false
 server:
-  http_listen_port: 3100
-  log_level: info
+  http_listen_port: ${LOKI_HTTP_LISTEN_PORT}
+  log_level: ${LOKI_LOG_LEVEL}
 ingester:
   lifecycler:
     address: 127.0.0.1
@@ -14,7 +14,7 @@ ingester:
   chunk_retain_period: 30s
   wal:
     enabled: true
-    dir: /loki/wal
+    dir: ${LOKI_WAL_DIR}
 schema_config:
   configs:
     - from: 2023-01-01
@@ -26,11 +26,11 @@ schema_config:
         period: 24h
 storage_config:
   boltdb_shipper:
-    active_index_directory: /loki/index
-    cache_location: /loki/cache
+    active_index_directory: ${LOKI_INDEX_DIR}
+    cache_location: ${LOKI_CACHE_DIR}
     shared_store: filesystem
   filesystem:
-    directory: /loki/chunks
+    directory: ${LOKI_CHUNKS_DIR}
 limits_config:
   enforce_metric_name: false
   reject_old_samples: true
@@ -40,7 +40,7 @@ chunk_store_config:
   max_look_back_period: 0s
 table_manager:
   retention_deletes_enabled: true
-  retention_period: 720h
+  retention_period: ${LOKI_RETENTION_PERIOD}
 compactor:
-  working_directory: /loki/boltdb-shipper-compactor
+  working_directory: ${LOKI_COMPACTOR_DIR}
   shared_store: filesystem

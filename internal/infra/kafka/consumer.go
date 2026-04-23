@@ -132,6 +132,7 @@ func (c *Consumer) Consume(ctx context.Context, topic string, groupID string, ha
 			Topic:     msg.Topic,
 			Partition: msg.Partition,
 			Offset:    msg.Offset,
+			Lag:       maxInt64(0, msg.HighWaterMark-msg.Offset),
 			Message: ports.KafkaMessage{
 				Key:     msg.Key,
 				Value:   msg.Value,
@@ -158,6 +159,13 @@ func (c *Consumer) Consume(ctx context.Context, topic string, groupID string, ha
 			return wrappedErr
 		}
 	}
+}
+
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (c *Consumer) Close() error {
