@@ -29,6 +29,7 @@ build:
     stage: build
     variables:
         GIT_STRATEGY: clone
+        GIT_CLEAN_FLAGS: -ffdx
     script: 
         - cp -r ~/projects/mrag/tmp .
         - find ~/projects/mrag/ai_sota_0022 -maxdepth 10
