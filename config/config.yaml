@@ -12,7 +12,7 @@ llm_service:
     id_monitoring: "${LLM_SERVICE_ID_MONITORING_PORT}"
     port_metric_grpc: "${LLM_SERVICE_METRIC_GRPC_PORT}"
 minio_service:
-    endpoint: "127.0.0.1:9000"
+    endpoint: "${MINIO_HOST_IP}:${MINIO_SERVICE_PORT}"
     access_key: "admin"
     secret_key: "supersecretpassword"
     use_ssl: false
