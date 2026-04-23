@@ -8,7 +8,7 @@ services:
       QDRANT__SERVICE__HTTP_PORT: "${QDRANT_HTTP_PORT:-6333}"
     user: "${QDRANT_USER:-1000:1000}"
     volumes:
-      - ${QDRANT_STORAGE_DIR:-./data/qdrant_storage}:/qdrant/storage:z
+      - ${QDRANT_STORAGE_DIR:-/home/minhtk/projects/mrag/data/qdrant_storage}:/qdrant/storage:z
     ports:
       - "${QDRANT_HOST_IP}:${QDRANT_HTTP_PORT:-6333}:6333"
       - "${QDRANT_HOST_IP}:${QDRANT_GRPC_PORT:-6334}:6334"
@@ -29,7 +29,7 @@ services:
       MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost:9001}
       MINIO_SERVER_URL: ${MINIO_SERVER_URL:-http://localhost:9000}
     volumes:
-      - ${MINIO_DATA_DIR:-./data/minio}:/data
+      - ${MINIO_DATA_DIR:-/home/minhtk/projects/mrag/data/minio}:/data
     command: server /data --console-address ":9001"
 
   kafka:
@@ -42,7 +42,7 @@ services:
     ports:
       - "${KAFKA_HOST_IP}:${KAFKA_EXTERNAL_PORT:-9092}:9092"
     volumes:
-      - ${KAFKA_DATA_DIR:-./data/kafka}:/bitnami:z
+      - ${KAFKA_DATA_DIR:-/home/minhtk/projects/mrag/data/kafka}:/bitnami:z
     environment:
       KAFKA_CFG_NODE_ID: ${KAFKA_CFG_NODE_ID:-0}
       KAFKA_CFG_PROCESS_ROLES: ${KAFKA_CFG_PROCESS_ROLES:-controller,broker}
@@ -59,7 +59,7 @@ services:
     restart: ${GRAFANA_RESTART:-unless-stopped}
     user: "0:0"
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${GRAFANA_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
@@ -80,6 +80,7 @@ services:
     image: ${LOKI_IMAGE:-grafana/loki:2.9.4}
     container_name: ${LOKI_CONTAINER_NAME:-monitoring_loki}
     restart: ${LOKI_RESTART:-unless-stopped}
+    user: "${LOKI_USER:-root}"
     command: ["-config.file=/etc/loki/loki-config.yml", "-config.expand-env=true"]
     environment:
       LOKI_HTTP_LISTEN_PORT: ${LOKI_PORT:-3100}

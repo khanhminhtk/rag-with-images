@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net"
 	"os"
 	"os/signal"
@@ -12,6 +13,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
 	"rag_imagetotext_texttoimage/internal/bootstrap"
@@ -49,8 +52,12 @@ func main() {
 		util.Fatalf("failed to initialize gemini client: %v", err)
 	}
 	appLogger.Info("gemini client ready")
+	startGRPCLLMService(appLogger, *cfg, geminiClient)
+	appLogger.Info("llm service stopped")
+}
 
-	llmServiceServer := grpcAdapter.NewLLMService(appLogger, geminiClient)
+func startGRPCLLMService(appLogger util.Logger, cfg util.Config, gemini *llm.Gemini) {
+	llmServiceServer := grpcAdapter.NewLLMService(appLogger, gemini)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.LLMService.Port))
 	if err != nil {
@@ -58,8 +65,14 @@ func main() {
 		util.Fatalf("failed to listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+	)
+	
 	pb.RegisterLlmServiceServer(grpcServer, llmServiceServer)
+	grpc_prometheus.EnableHandlingTimeHistogram()
+	grpc_prometheus.Register(grpcServer)
 
 	reflection.Register(grpcServer)
 	appLogger.Info("llm grpc reflection enabled")
@@ -72,11 +85,19 @@ func main() {
 		}
 	}()
 
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		metricsAddr := fmt.Sprintf("%s:%s", cfg.LLMService.IdMonitoring, cfg.LLMService.PortMetricGRPC)
+		appLogger.Info("Prometheus metrics server listening on " + metricsAddr + "/metrics")
+		if err := http.ListenAndServe(metricsAddr, nil); err != nil {
+			appLogger.Error("failed to serve metrics: %v", err)
+		}
+	}()
+	
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
 	appLogger.Info("grpc graceful shutdown")
 	grpcServer.GracefulStop()
-	appLogger.Info("llm service stopped")
 }

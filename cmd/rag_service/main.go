@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -12,6 +13,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
 	usecases "rag_imagetotext_texttoimage/internal/application/use_cases"
@@ -75,12 +78,21 @@ func main() {
 		collectionStore,
 	)
 
+	startGRPCRagService(appLogger, *cfg, ragService)
+	appLogger.Info("rag service stopped")
+
+}
+
+func startGRPCRagService(appLogger util.Logger, cfg util.Config, ragService *grpcAdapter.RagService) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.RAGService.Port))
 	if err != nil {
 		appLogger.Error("listen tcp failed", err, "port", cfg.RAGService.Port)
 		util.Fatalf("failed to listen: %v", err)
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+	)
 	pb.RegisterRagServiceServer(grpcServer, ragService)
 
 	reflection.Register(grpcServer)
@@ -93,6 +105,15 @@ func main() {
 		}
 	}()
 
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		metricsAddr := fmt.Sprintf("%s:%s", cfg.RAGService.IDMonitoring, cfg.RAGService.PortMetricGRPC)
+		appLogger.Info("Prometheus metrics server listening on " + metricsAddr + "/metrics")
+		if err := http.ListenAndServe(metricsAddr, nil); err != nil {
+			appLogger.Error("failed to serve metrics: %v", err)
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
@@ -100,5 +121,4 @@ func main() {
 	appLogger.Info("grpc graceful shutdown")
 	grpcServer.GracefulStop()
 	appLogger.Info("rag service stopped")
-
 }

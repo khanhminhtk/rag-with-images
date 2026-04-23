@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -19,7 +20,10 @@ import (
 	trainingfile "rag_imagetotext_texttoimage/internal/application/use_cases/orchestrator/training_file"
 	"rag_imagetotext_texttoimage/internal/bootstrap"
 	infraKafka "rag_imagetotext_texttoimage/internal/infra/kafka"
+	"rag_imagetotext_texttoimage/internal/infra/monitoring"
 	"rag_imagetotext_texttoimage/internal/util"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type processFileKafkaRequest struct {
@@ -98,16 +102,24 @@ func main() {
 	producerAdapter := kafkaAdapter.NewProducerAdapter(publisher)
 	consumerAdapter := kafkaAdapter.NewConsumerAdapter(consumer, appLogger)
 	trainingFileUseCase := trainingfile.NewTrainingFileUseCase(appLogger, publisher, consumer, *cfg)
+	metricsKafka := monitoring.NewMetrics()
+	metricsSrv := newProcessFileMetricsHTTPServer(cfg)
 
 	rootCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	consumerErrCh := consumerAdapter.Start(rootCtx, topics.ProcessFileRequest, topics.ProcessFileGroup, func(ctx context.Context, msg ports.ConsumeMessage) error {
-		startedAt := time.Now()
+	consumerErrCh := consumerAdapter.Start(rootCtx, topics.ProcessFileRequest, topics.ProcessFileGroup, func(ctx context.Context, msg ports.ConsumeMessage) (handlerErr error) {
+		handlerName := "process_file_ingest"
+		telemetry := newProcessFileTelemetry(metricsKafka, appLogger, msg, handlerName, "panic recovered in process file handler")
+		telemetry.start()
+		defer telemetry.done()
+		defer telemetry.recover(&handlerErr)
+
 		correlationID := resolveCorrelationID("", msg)
 
 		var req processFileKafkaRequest
 		if err := decodeProcessFileKafkaRequest(msg.Message.Value, &req); err != nil {
+			telemetry.observe("invalid_payload")
 			appLogger.Error("invalid process file request payload", err, "topic", msg.Topic, "offset", msg.Offset, "correlation_id", correlationID)
 			if topics.ProcessFileResult != "" {
 				publishErr := producerAdapter.PublishJSON(ctx, topics.ProcessFileResult, []byte(correlationID), map[string]any{
@@ -122,6 +134,7 @@ func main() {
 					"correlation_id": correlationID,
 				})
 				if publishErr != nil {
+					telemetry.retry("publish_error")
 					appLogger.Error("publish invalid process file request result failed", publishErr, "result_topic", topics.ProcessFileResult, "correlation_id", correlationID)
 				}
 			}
@@ -134,6 +147,7 @@ func main() {
 		success := processErr == nil && processResult.Success
 		message := "process and ingest completed"
 		if processErr != nil {
+			telemetry.observe("failed")
 			message = processErr.Error()
 			appLogger.Error("process and ingest failed", processErr, "uuid", req.UUID, "correlation_id", correlationID)
 		}
@@ -152,8 +166,12 @@ func main() {
 				"correlation_id": correlationID,
 			})
 			if publishErr != nil {
+				telemetry.retry("publish_error")
 				appLogger.Error("publish process file result failed", publishErr, "result_topic", topics.ProcessFileResult, "correlation_id", correlationID)
 			}
+		}
+		if success {
+			telemetry.observe("success")
 		}
 
 		appLogger.Info(
@@ -162,10 +180,21 @@ func main() {
 			"uuid", req.UUID,
 			"correlation_id", correlationID,
 			"success", success,
-			"latency_ms", time.Since(startedAt).Milliseconds(),
+			"latency_ms", time.Since(telemetry.startedAt).Milliseconds(),
 		)
 		return nil
 	})
+
+	metricsErrCh := make(chan error, 1)
+	go func() {
+		if metricsSrv == nil {
+			return
+		}
+		appLogger.Info("process file metrics server listening", "addr", metricsSrv.Addr)
+		if serveErr := metricsSrv.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
+			metricsErrCh <- serveErr
+		}
+	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
@@ -173,6 +202,10 @@ func main() {
 	select {
 	case <-quit:
 		appLogger.Info("received shutdown signal")
+	case err := <-metricsErrCh:
+		if err != nil {
+			appLogger.Error("process file metrics server stopped with error", err)
+		}
 	case err := <-consumerErrCh:
 		if err != nil {
 			appLogger.Error("process file consumer stopped with error", err)
@@ -181,6 +214,11 @@ func main() {
 
 	cancel()
 	waitConsumerStopped(consumerErrCh, appLogger, 15*time.Second)
+	if metricsSrv != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = metricsSrv.Shutdown(shutdownCtx)
+		shutdownCancel()
+	}
 	appLogger.Info("process file service stopped")
 }
 
@@ -225,4 +263,96 @@ func resolveCorrelationID(requestCorrelationID string, msg ports.ConsumeMessage)
 		correlationID = fmt.Sprintf("process-file-%d", time.Now().UnixNano())
 	}
 	return correlationID
+}
+
+func newProcessFileMetricsHTTPServer(cfg *util.Config) *http.Server {
+	if cfg == nil {
+		return nil
+	}
+	host := strings.TrimSpace(cfg.FileTraining.IDMonitoring)
+	if host == "" {
+		host = "0.0.0.0"
+	}
+	port := strings.TrimSpace(cfg.FileTraining.PortMetricGRPC)
+	if port == "" {
+		port = "9105"
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	return &http.Server{
+		Addr:    fmt.Sprintf("%s:%s", host, port),
+		Handler: mux,
+	}
+}
+
+type processFileTelemetry struct {
+	metrics         *monitoring.Metrics
+	logger          util.Logger
+	msg             ports.ConsumeMessage
+	handlerName     string
+	panicLogMessage string
+	startedAt       time.Time
+}
+
+func newProcessFileTelemetry(metrics *monitoring.Metrics, logger util.Logger, msg ports.ConsumeMessage, handlerName string, panicLogMessage string) *processFileTelemetry {
+	return &processFileTelemetry{
+		metrics:         metrics,
+		logger:          logger,
+		msg:             msg,
+		handlerName:     handlerName,
+		panicLogMessage: panicLogMessage,
+		startedAt:       time.Now(),
+	}
+}
+
+func (t *processFileTelemetry) start() {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics.InFlight.Inc()
+	t.metrics.QueueLength.Set(float64(t.msg.Lag))
+}
+
+func (t *processFileTelemetry) done() {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics.InFlight.Dec()
+}
+
+func (t *processFileTelemetry) observe(status string) {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics.ProcessedTotal.WithLabelValues(t.msg.Topic, t.handlerName, status).Inc()
+	t.metrics.ProcessingTime.WithLabelValues(t.msg.Topic, t.handlerName, status).Observe(time.Since(t.startedAt).Seconds())
+}
+
+func (t *processFileTelemetry) retry(errorType string) {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics.RetryTotal.WithLabelValues(t.msg.Topic, t.handlerName, errorType).Inc()
+}
+
+func (t *processFileTelemetry) recover(handlerErr *error) {
+	if t == nil {
+		return
+	}
+	recovered := recover()
+	if recovered == nil {
+		return
+	}
+
+	panicErr := fmt.Errorf("panic recovered: %v", recovered)
+	if t.metrics != nil {
+		t.metrics.PanicsTotal.WithLabelValues(t.msg.Topic, t.handlerName).Inc()
+		t.observe("panic")
+	}
+	if handlerErr != nil {
+		*handlerErr = panicErr
+	}
+	if t.logger != nil {
+		t.logger.Error(t.panicLogMessage, panicErr, "topic", t.msg.Topic, "offset", t.msg.Offset)
+	}
 }
