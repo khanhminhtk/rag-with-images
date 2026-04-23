@@ -4,15 +4,20 @@ qdrant:
     use_gRPC: false
     log_path: "logs/qdrant.log"
 llm_service:
+    id_grpc: "${LLM_SERVICE_ID_GRPC}"
     model: "${LLM_MODEL}"
     temp: ${LLM_TEMPERATURE}
     apikey: "${GEMINI_API_KEY}"
     port: "${LLM_SERVICE_PORT}"
+    id_monitoring: "${LLM_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${LLM_SERVICE_METRIC_GRPC_PORT}"
 minio_service:
-    endpoint: "100.105.80.22:9000"
+    endpoint: "127.0.0.1:9000"
     access_key: "admin"
     secret_key: "supersecretpassword"
     use_ssl: false
+    id_monitoring: "${MINIO_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${MINIO_SERVICE_METRIC_GRPC_PORT}"
     default_bucket: "${MINIO_DEFAULT_BUCKET}"
     buckets:
         default: "${MINIO_DEFAULT_BUCKET}"
@@ -31,6 +36,8 @@ kafka:
     brokers: ["${KAFKA_BROKERS}"]
 embedding_service:
     port: "${EMBEDDING_SERVICE_PORT}"
+    id_monitoring: "${EMBEDDING_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${EMBEDDING_SERVICE_METRIC_GRPC_PORT}"
     log_path: "${EMBEDDING_SERVICE_LOG_PATH}"
     jina_config_path: "${EMBEDDING_SERVICE_JINA_CONFIG}"
     topics:
@@ -42,6 +49,8 @@ embedding_service:
         batch_image_result: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_RESULT_TOPIC}"
 process_file_service:
     port: "${PROCESS_FILE_SERVICE_PORT}"
+    id_monitoring: "${PROCESS_FILE_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${PROCESS_FILE_SERVICE_METRIC_GRPC_PORT}"
     log_path: "${PROCESS_FILE_SERVICE_LOG_PATH}"
     batch_size: 20
     marker_dev_mode: false
@@ -63,6 +72,9 @@ rag_service:
     qdrant_request_timeout_seconds: 15
     qdrant_retry_attempts: 3
     qdrant_retry_backoff_ms: 300
+    rag_id_grpc: "${RAG_ID_GRPC}"
+    rag_id_monitoring: "${RAG_ID_MONITORING}"
+    rag_port_metric_grpc: "${RAG_PORT_METRIC_GRPC}"
 orchestrator_service:
     port: "${ORCHESTRATOR_SERVICE_PORT}"
     log_path: "${ORCHESTRATOR_SERVICE_LOG_PATH}"
