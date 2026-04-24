@@ -223,8 +223,9 @@ test_e2e:
             ./test_cases/dlmodel_service_test_embedding_image.sh
             ./test_cases/processfile_service_test_process_and_ingest.sh
             ./test_cases/orchestrator_service_test_healthz.sh
-            ./test_cases/orchestrator_service_test_vectordb_createcollection.sh
             ./test_cases/orchestrator_service_test_chat.sh
+            ./test_cases/orchestrator_service_test_vectordb_deletecollection.sh
+            ./test_cases/orchestrator_service_test_vectordb_createcollection.sh
             ./test_cases/orchestrator_service_test_process_and_ingest.sh
             ./test_cases/orchestrator_service_test_vectordb_deletefilter.sh
             ./test_cases/orchestrator_service_test_vectordb_deletecollection.sh

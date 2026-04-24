@@ -7,7 +7,7 @@ BASE_URL="http://${ORCHESTRATOR_HOST}"
 
 SESSION_ID="${SESSION_ID:-session_1234678}"
 QUERY="${QUERY:-Ảnh này nó nói về gì?}"
-IMAGE_PATH="${IMAGE_PATH:-http://0.0.0.0:8000/download/_page_1_Figure_0.jpeg}"
+IMAGE_PATH="${IMAGE_PATH:-$ROOT_DIR/data/test/Screenshot_20260410_162759.png}"
 UUID="${UUID:-ai_sota_0022}"
 
 echo "== [1] Call orchestrator chat API =="

@@ -12,8 +12,9 @@ SCRIPTS=(
   llm_service_test_text_to_text.sh
   dlmodel_service_test_embedding_text.sh
   orchestrator_service_test_healthz.sh
-  orchestrator_service_test_vectordb_createcollection.sh
   orchestrator_service_test_chat.sh
+  orchestrator_service_test_vectordb_deletecollection.sh
+  orchestrator_service_test_vectordb_createcollection.sh
   orchestrator_service_test_process_and_ingest.sh
   orchestrator_service_test_vectordb_deletefilter.sh
   orchestrator_service_test_vectordb_deletecollection.sh
