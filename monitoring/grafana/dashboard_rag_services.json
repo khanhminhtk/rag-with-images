@@ -1,0 +1,207 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"options": {"0": {"index": 0, "text": "DOWN"}, "1": {"index": 1, "text": "UP"}}, "type": "value"}
+          ],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {"expr": "sum(up{job=~\"$job\"}) / count(up{job=~\"$job\"})", "refId": "A"}
+      ],
+      "title": "Overall Service Health",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 18, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "up{job=~\"$job\"}", "legendFormat": "{{job}} @ {{instance}}", "refId": "A"}
+      ],
+      "title": "Up By Service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "expr": "sum by (job, grpc_service, grpc_method, grpc_code) (rate(grpc_server_handled_total{job=~\"$job\"}[5m]))",
+          "legendFormat": "{{job}} {{grpc_service}}/{{grpc_method}} {{grpc_code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "gRPC Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, job, grpc_service, grpc_method) (rate(grpc_server_handling_seconds_bucket{job=~\"$job\"}[5m])))",
+          "legendFormat": "p95 {{job}} {{grpc_service}}/{{grpc_method}}",
+          "refId": "A"
+        }
+      ],
+      "title": "gRPC Latency p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by(job) (go_goroutines{job=~\"$job\"})", "legendFormat": "{{job}}", "refId": "A"}
+      ],
+      "title": "Go Goroutines",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by(job) (process_resident_memory_bytes{job=~\"$job\"})", "legendFormat": "{{job}}", "refId": "A"}
+      ],
+      "title": "Process Memory RSS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
+      "id": 7,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by(job) (rate(process_cpu_seconds_total{job=~\"$job\"}[5m]))", "legendFormat": "{{job}}", "refId": "A"}
+      ],
+      "title": "Process CPU (core usage)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"expr": "sum by(job) (kafka_task_inflight{job=~\"$job\"})", "legendFormat": "{{job}} in-flight", "refId": "A"},
+        {"expr": "sum by(job) (kafka_task_queue_length{job=~\"$job\"})", "legendFormat": "{{job}} queue", "refId": "B"}
+      ],
+      "title": "Kafka Worker Queue",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "id": 9,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "expr": "sum by(job, handler, status) (rate(kafka_task_processed_total{job=~\"$job\"}[5m]))",
+          "legendFormat": "{{job}} {{handler}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Kafka Task Throughput",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["rag", "grpc", "prometheus", "kafka"],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {"selected": true, "text": "All", "value": ".*"},
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(up, job)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Job",
+        "multi": true,
+        "name": "job",
+        "options": [],
+        "query": {"query": "label_values(up, job)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
+        "refresh": 1,
+        "regex": "(llm_service|rag_service|embedding_service|minio_service|process_file_service)",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "RAG Services Overview",
+  "uid": "rag-services-overview",
+  "version": 1,
+  "weekStart": ""
+}
