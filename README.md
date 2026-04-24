@@ -463,9 +463,40 @@ flowchart TD
 ```
 ## 10. Cấu trúc thư mục quan trọng
 
-- `cmd/`: entrypoint từng service
-- `internal/`: usecase/adapter/bootstrap/infra
-- `config/`: `.env.*` và `config.yaml`
-- `monitoring/`: Prometheus, Grafana datasource, Loki, Promtail
-- `test_cases/`: script e2e/smoke
-- `third_party/onnx_c++/`: runtime embedding C++
+```text
+worktree/main
+├── cmd/
+│   ├── orchestrator_service/
+│   ├── rag_service/
+│   ├── dlmodel_service/
+│   ├── llm_service/
+│   ├── minio_service/
+│   └── processfile_service/
+├── internal/
+│   ├── adapter/          # inbound HTTP/gRPC, Kafka adapter
+│   ├── application/      # DTO, port, use case
+│   ├── domain/           # entity/domain rules
+│   ├── infra/            # qdrant/minio/kafka/llm/monitoring/cgo
+│   ├── bootstrap/        # wiring app + dependency graph
+│   └── util/
+├── config/               # config.yaml, .env.dev, .env.test, ...
+├── monitoring/
+│   ├── prometheus/
+│   ├── grafana/
+│   ├── loki/
+│   └── promtail/
+├── test_cases/           # smoke + e2e scripts theo từng service
+├── proto/                # protobuf contracts
+├── third_party/onnx_c++/ # ONNX C++ runtime + config model
+├── docs/
+│   ├── monitoring/
+│   └── cicd/
+├── data/                 # test data, prompt data
+└── docker_compose_dev.yaml
+```
+
+Mapping nhanh:
+- `cmd/` + `internal/`: lõi code backend và nghiệp vụ.
+- `test_cases/`: script chạy độc lập hoặc gom qua `run_all_tests.sh`.
+- `monitoring/` + `docs/monitoring`: cấu hình và ảnh minh họa observability.
+- `third_party/onnx_c++/`: thành phần embedding runtime và model config.
