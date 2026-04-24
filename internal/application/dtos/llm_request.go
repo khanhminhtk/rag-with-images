@@ -1,12 +1,15 @@
-package dto
+package dtos
 
-import "rag_imagetotext_texttoimage/internal/application/ports"
+type ChatHistory struct {
+	Role    string
+	Content string
+}
 
 type LlmRequest struct {
 	Temp            float32
 	Prompt          string
 	Model           string
-	History         []ports.ChatHistory
+	History         []ChatHistory
 	ImageMode       bool
 	StructureOutput map[string]any
 }

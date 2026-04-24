@@ -2,58 +2,72 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
-	"strconv"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	grpcAdapter "rag_imagetotext_texttoimage/internal/adapter/grpc"
-	"rag_imagetotext_texttoimage/internal/application/use_cases"
+	usecases "rag_imagetotext_texttoimage/internal/application/use_cases"
+	"rag_imagetotext_texttoimage/internal/bootstrap"
 	infraQdrant "rag_imagetotext_texttoimage/internal/infra/qdrant"
 	"rag_imagetotext_texttoimage/internal/util"
 	pb "rag_imagetotext_texttoimage/proto"
 )
 
 func main() {
-	config_loader := util.NewConfigLoader(
-		"./config/.env",
-		"./config/config.yaml",
-	)
-	config_loader.Load()
-	config := config_loader.GetConfig()
-
-	appLogger, err := util.NewFileLogger(config.Qdrant.LogPath, slog.LevelInfo)
+	cfg, appLogger, err := bootstrap.BuildConfigAndLogger(bootstrap.CmdRuntimeOptions{
+		Namespace: "rag_service",
+		EnvPath:   "./config/.env",
+		YamlPath:  "./config/config.yaml",
+		LogLevel:  slog.LevelInfo,
+		ResolveLogPath: func(_ *util.Config) string {
+			return "logs/rag_service.log"
+		},
+	})
 	if err != nil {
-		log.Fatalf("Not able to create logger: %v", err)
+		util.Fatalf("failed to bootstrap rag runtime: %v", err)
+	}
+	defer appLogger.Close()
+	appLogger.Info("rag service bootstrap started", "grpc_port", cfg.RAGService.Port, "qdrant_host", cfg.RAGService.QdrantHost, "qdrant_port", cfg.RAGService.QdrantPort, "log_path", "logs/rag_service.log")
+
+	portInt, err := strconv.Atoi(cfg.RAGService.QdrantPort)
+	if err != nil {
+		util.Fatalf("invalid qdrant port %s: %v", cfg.RAGService.QdrantPort, err)
 	}
 
-	portInt, err := strconv.Atoi(config.Qdrant.Port)
-	if err != nil {
-		panic("Port không hợp lệ: " + err.Error())
-	}
-
-	config_qdrant := infraQdrant.Config{
-		Host: config.Qdrant.Bootstrap,
+	configQdrant := infraQdrant.Config{
+		Host: cfg.RAGService.QdrantHost,
 		Port: portInt,
 	}
 
 	client, err := infraQdrant.NewClient(
-		config_qdrant,
+		configQdrant,
 		appLogger,
 	)
 	if err != nil {
-		appLogger.Error("Not able to create qdrant client", err)
+		appLogger.Error("create qdrant client failed", err)
 		return
 	}
+	appLogger.Info("rag service qdrant client ready")
 
 	pointStore := infraQdrant.NewPointStore(client.Raw(), appLogger)
-	collectionStore := infraQdrant.NewCollectionStore(client.Raw(), appLogger)
+	collectionStore := infraQdrant.NewCollectionStore(
+		client.Raw(),
+		appLogger,
+		infraQdrant.WithQdrantRequestTimeout(time.Duration(cfg.RAGService.QdrantRequestTimeoutSeconds)*time.Second),
+		infraQdrant.WithQdrantRetryAttempts(cfg.RAGService.QdrantRetryAttempts),
+		infraQdrant.WithQdrantRetryBackoff(time.Duration(cfg.RAGService.QdrantRetryBackoffMs)*time.Millisecond),
+	)
 
 	searchWithVectorDB := usecases.NewSearchWithVectorDB(appLogger, pointStore)
 
@@ -63,21 +77,40 @@ func main() {
 		pointStore,
 		collectionStore,
 	)
-	port := "50051"
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+
+	startGRPCRagService(appLogger, *cfg, ragService)
+	appLogger.Info("rag service stopped")
+
+}
+
+func startGRPCRagService(appLogger util.Logger, cfg util.Config, ragService *grpcAdapter.RagService) {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.RAGService.Port))
 	if err != nil {
-		appLogger.Error("Failed to listen on TCP port", err)
-		log.Fatalf("Failed to listen: %v", err)
+		appLogger.Error("listen tcp failed", err, "port", cfg.RAGService.Port)
+		util.Fatalf("failed to listen: %v", err)
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+	)
 	pb.RegisterRagServiceServer(grpcServer, ragService)
 
 	reflection.Register(grpcServer)
+	appLogger.Info("rag service grpc reflection enabled")
 	go func() {
-		appLogger.Info("gRPC server listening", "port", port)
+		appLogger.Info("grpc server listening", "port", cfg.RAGService.Port)
 		if err := grpcServer.Serve(lis); err != nil {
-			appLogger.Error("Failed to serve gRPC server", err)
-			log.Fatalf("Failed to serve: %v", err)
+			appLogger.Error("grpc serve failed", err)
+			util.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		metricsAddr := fmt.Sprintf("%s:%s", cfg.RAGService.IDMonitoring, cfg.RAGService.PortMetricGRPC)
+		appLogger.Info("Prometheus metrics server listening on " + metricsAddr + "/metrics")
+		if err := http.ListenAndServe(metricsAddr, nil); err != nil {
+			appLogger.Error("failed to serve metrics: %v", err)
 		}
 	}()
 
@@ -85,10 +118,7 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	appLogger.Info("Shutting down gRPC server gracefully...")
+	appLogger.Info("grpc graceful shutdown")
 	grpcServer.GracefulStop()
-	appLogger.Info("Server exited.")
-	
-
-
+	appLogger.Info("rag service stopped")
 }

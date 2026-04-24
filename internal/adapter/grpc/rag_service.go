@@ -3,10 +3,10 @@ package grpc
 import (
 	"context"
 	"errors"
+	usecases "rag_imagetotext_texttoimage/internal/application/use_cases"
 	"strconv"
 	"strings"
 	"time"
-	usecases "rag_imagetotext_texttoimage/internal/application/use_cases"
 
 	"rag_imagetotext_texttoimage/internal/application/ports"
 	domain "rag_imagetotext_texttoimage/internal/domain/entity_objects"
@@ -39,6 +39,9 @@ func NewRagService(
 }
 
 func (r *RagService) CreateCollection(ctx context.Context, req *pb.SchemaCollection) (*pb.ResponseCreateCollection, error) {
+	startedAt := time.Now()
+	r.appLogger.Info("rag grpc CreateCollection started", "collection", req.Name, "vector_count", len(req.Vectors))
+
 	vectors := make([]ports.CollectionVectorConfig, 0, len(req.Vectors))
 	for _, v := range req.Vectors {
 		vectors = append(vectors, ports.CollectionVectorConfig{
@@ -61,15 +64,14 @@ func (r *RagService) CreateCollection(ctx context.Context, req *pb.SchemaCollect
 		return &pb.ResponseCreateCollection{Name: req.Name, Status: false}, err
 	}
 
-	exists, err := r.collectionStore.CollectionExists(ctx, schema.Name)
-	if err != nil {
-		return &pb.ResponseCreateCollection{Name: req.Name, Status: false}, err
-	}
-
-	return &pb.ResponseCreateCollection{Name: req.Name, Status: exists}, nil
+	r.appLogger.Info("rag grpc CreateCollection completed", "collection", req.Name, "status", true, "latency_ms", time.Since(startedAt).Milliseconds())
+	return &pb.ResponseCreateCollection{Name: req.Name, Status: true}, nil
 }
 
 func (r *RagService) DeleteCollection(ctx context.Context, req *pb.DeleteCollectionRequest) (*pb.ResponseDeleteCollection, error) {
+	startedAt := time.Now()
+	r.appLogger.Info("rag grpc DeleteCollection started", "collection", req.Name)
+
 	if err := r.collectionStore.DeleteCollection(ctx, req.Name); err != nil {
 		r.appLogger.Error("DeleteCollection error", err)
 		return nil, err
@@ -81,6 +83,7 @@ func (r *RagService) DeleteCollection(ctx context.Context, req *pb.DeleteCollect
 		return nil, err
 	}
 
+	r.appLogger.Info("rag grpc DeleteCollection completed", "collection", req.Name, "status", !exists, "latency_ms", time.Since(startedAt).Milliseconds())
 	return &pb.ResponseDeleteCollection{
 		Name:   req.Name,
 		Status: !exists,
@@ -88,6 +91,9 @@ func (r *RagService) DeleteCollection(ctx context.Context, req *pb.DeleteCollect
 }
 
 func (r *RagService) InsertPoint(ctx context.Context, req *pb.InsertPointRequest) (*pb.ResponseInsertPoint, error) {
+	startedAt := time.Now()
+	r.appLogger.Info("rag grpc InsertPoint started", "collection", req.CollectionName, "points", len(req.Points))
+
 	exists, err := r.collectionStore.CollectionExists(ctx, req.CollectionName)
 	if err != nil {
 		return &pb.ResponseInsertPoint{CollectionName: req.CollectionName, Status: false}, err
@@ -130,10 +136,14 @@ func (r *RagService) InsertPoint(ctx context.Context, req *pb.InsertPointRequest
 		return &pb.ResponseInsertPoint{CollectionName: req.CollectionName, Status: false}, err
 	}
 
+	r.appLogger.Info("rag grpc InsertPoint completed", "collection", req.CollectionName, "status", true, "points", len(points), "latency_ms", time.Since(startedAt).Milliseconds())
 	return &pb.ResponseInsertPoint{CollectionName: req.CollectionName, Status: true}, nil
 }
 
 func (r *RagService) DeletePointFilter(ctx context.Context, req *pb.DeletePointFilterRequest) (*pb.ResponseDeletePointFilter, error) {
+	startedAt := time.Now()
+	r.appLogger.Info("rag grpc DeletePointFilter started", "collection", req.CollectionName)
+
 	exists, err := r.collectionStore.CollectionExists(ctx, req.CollectionName)
 	if err != nil {
 		return &pb.ResponseDeletePointFilter{CollectionName: req.CollectionName, Status: false}, err
@@ -159,10 +169,14 @@ func (r *RagService) DeletePointFilter(ctx context.Context, req *pb.DeletePointF
 		return &pb.ResponseDeletePointFilter{CollectionName: req.CollectionName, Status: false}, err
 	}
 
+	r.appLogger.Info("rag grpc DeletePointFilter completed", "collection", req.CollectionName, "status", true, "latency_ms", time.Since(startedAt).Milliseconds())
 	return &pb.ResponseDeletePointFilter{CollectionName: req.CollectionName, Status: true}, nil
 }
 
 func (r *RagService) SearchPoint(ctx context.Context, req *pb.SearchPointRequest) (*pb.ResponseSearchPoint, error) {
+	startedAt := time.Now()
+	r.appLogger.Info("rag grpc SearchPoint started", "collection", req.CollectionName, "vector_name", req.VectorName, "limit", req.Limit)
+
 	query := ports.SearchQuery{
 		CollectionName: req.CollectionName,
 		VectorName:     req.VectorName,
@@ -170,7 +184,7 @@ func (r *RagService) SearchPoint(ctx context.Context, req *pb.SearchPointRequest
 		QueryText:      req.QueryText,
 		Limit:          req.Limit,
 		WithPayload:    req.WithPayload,
-	}	
+	}
 	if req.ScoreThreshold != nil {
 		v := req.GetScoreThreshold()
 		query.ScoreThreshold = &v
@@ -195,7 +209,19 @@ func (r *RagService) SearchPoint(ctx context.Context, req *pb.SearchPointRequest
 		}
 		items = append(items, item)
 	}
+	topScore := float32(-1)
+	if len(items) > 0 && items[0] != nil {
+		topScore = items[0].Score
+	}
 
+	r.appLogger.Info(
+		"rag grpc SearchPoint completed",
+		"collection", req.CollectionName,
+		"vector_name", req.VectorName,
+		"result_count", len(items),
+		"top_score", topScore,
+		"latency_ms", time.Since(startedAt).Milliseconds(),
+	)
 	return &pb.ResponseSearchPoint{
 		CollectionName: req.CollectionName,
 		Results:        items,

@@ -12,7 +12,7 @@ import (
 
 const (
 	collectionName = "test"
-	logPath        = "/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/app.log"
+	logPath        = "logs/app.log"
 )
 
 func getClient(appLogger util.Logger) *qdrant.Client {

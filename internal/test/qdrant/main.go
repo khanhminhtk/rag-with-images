@@ -16,7 +16,7 @@ import (
 
 const (
 	collectionName = "test_e2e_qdrant"
-	logPath        = "/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/app.log"
+	logPath        = "logs/app.log"
 )
 
 func main() {

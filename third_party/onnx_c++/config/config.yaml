@@ -1,0 +1,78 @@
+models:
+  jina_text_encoder:
+    model_path: "model/onnx/jina_text.onnx"
+    vocab_path: "model/tokenizer/vocab.txt"
+    inputs:
+      input_ids:
+        shape: ["batch_size", "sequence_length"]
+        type: "int64"
+      attention_mask:
+        shape: ["batch_size", "sequence_length"]
+        type: "int64"
+
+    outputs:
+      shape: ["batch_size", "768"]
+      type: "float32"
+
+    session_config:
+      intra_op_num_threads: 4
+      inter_op_num_threads: 2
+      execution_mode: "sequential"
+      graph_optimization_level: "enable_extended"
+
+      execution_provider:
+        type: "cuda"
+        device: 0
+        options: {}
+
+      memory_config:
+        memory_pattern: "enable"
+        cpu_mem_arena: "enable"
+        arena_config:
+          initial_chunk_size_bytes: 1048576  # 1MB
+          max_mem: 0
+          arena_extend_strategy: 0
+
+      log_severity_level: "warning"
+
+  jina_vision_encoder:
+    model_path: "model/onnx/jina_vision.onnx"
+    image_width: 224
+    image_height: 224
+
+    inputs:
+      pixel_values:
+        shape: ["batch_size", "3", "224", "224"]
+        type: "float32"
+
+    outputs:
+      shape: ["batch_size", "768"]
+      type: "float32"
+
+    session_config:
+      intra_op_num_threads: 4
+      inter_op_num_threads: 2
+      execution_mode: "sequential"
+      graph_optimization_level: "enable_extended"
+
+      execution_provider:
+        type: "cuda"
+        device: 0
+        options: {}
+
+      memory_config:
+        memory_pattern: "enable"
+        cpu_mem_arena: "enable"
+        arena_config:
+          initial_chunk_size_bytes: 1048576
+          max_mem: 0
+          arena_extend_strategy: 0
+
+      log_severity_level: "warning"
+
+# Application settings
+application:
+  max_batch_size: 8
+  embedding_dimension: 768
+  warmup_iterations: 3
+  enable_profiling: false

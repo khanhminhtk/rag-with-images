@@ -33,7 +33,7 @@ func main() {
 	const collectionName = "test"
 
 	appLogger, err := util.NewFileLogger(
-		"/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/app.log",
+		"logs/app.log",
 		slog.LevelInfo,
 	)
 
@@ -128,7 +128,7 @@ func buildFakeQuery() ports.SearchQuery {
 
 func buildFakePoints() []domain.PointObject {
 	now := time.Now().UTC()
-	imagePath := "/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/data/transformer_model_architecture.png"
+	imagePath := "data/transformer_model_architecture.png"
 
 	return []domain.PointObject{
 		{

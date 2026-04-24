@@ -1,9 +1,95 @@
 qdrant:
-    bootstrap: "localhost"
-    port: 6334
+    bootstrap: "100.105.80.22"
+    port: "${QDRANT_GRPC_PORT}"
     use_gRPC: false
-    log_path: "/home/minhtk/code/rag_imtotext_texttoim/worktree/service-rag/logs/qdrant.log"
-llm:
-    model: "models/gemini-3-flash-preview"
-    temp: 0.7
-    apikey: "${gemini_api_key}"
+    log_path: "logs/qdrant.log"
+llm_service:
+    id_grpc: "${LLM_SERVICE_ID_GRPC}"
+    model: "${LLM_MODEL}"
+    temp: ${LLM_TEMPERATURE}
+    apikey: "${GEMINI_API_KEY}"
+    port: "${LLM_SERVICE_PORT}"
+    id_monitoring: "${LLM_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${LLM_SERVICE_METRIC_GRPC_PORT}"
+minio_service:
+    endpoint: "${MINIO_HOST_IP}:${MINIO_API_PORT}"
+    access_key: "admin"
+    secret_key: "supersecretpassword"
+    use_ssl: false
+    id_monitoring: "${MINIO_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${MINIO_SERVICE_METRIC_GRPC_PORT}"
+    default_bucket: "${MINIO_DEFAULT_BUCKET}"
+    buckets:
+        default: "${MINIO_DEFAULT_BUCKET}"
+        upload: "${MINIO_BUCKET_UPLOAD}"
+        presign: "${MINIO_BUCKET_PRESIGN}"
+        delete: "${MINIO_BUCKET_DELETE}"
+        archive: "${MINIO_BUCKET_ARCHIVE}"
+    region: "${MINIO_REGION}"
+    presign_expiry_seconds: 900
+    grpc_port: "${MINIO_SERVICE_PORT}"
+    topics:
+        upload_request: "${MINIO_KAFKA_UPLOAD_TOPIC}"
+        upload_group: "${MINIO_KAFKA_UPLOAD_GROUP}"
+        upload_result: "${MINIO_KAFKA_RESULT_TOPIC}"
+kafka:
+    brokers: ["${KAFKA_BROKERS}"]
+embedding_service:
+    port: "${EMBEDDING_SERVICE_PORT}"
+    id_monitoring: "${EMBEDDING_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${EMBEDDING_SERVICE_METRIC_GRPC_PORT}"
+    log_path: "${EMBEDDING_SERVICE_LOG_PATH}"
+    jina_config_path: "${EMBEDDING_SERVICE_JINA_CONFIG}"
+    topics:
+        batch_text_request: "${EMBEDDING_SERVICE_KAFKA_BATCH_TEXT_TOPIC}"
+        batch_text_group: "${EMBEDDING_SERVICE_KAFKA_BATCH_TEXT_GROUP}"
+        batch_text_result: "${EMBEDDING_SERVICE_KAFKA_BATCH_TEXT_RESULT_TOPIC}"
+        batch_image_request: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_TOPIC}"
+        batch_image_group: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_GROUP}"
+        batch_image_result: "${EMBEDDING_SERVICE_KAFKA_BATCH_IMAGE_RESULT_TOPIC}"
+process_file_service:
+    port: "${PROCESS_FILE_SERVICE_PORT}"
+    id_monitoring: "${PROCESS_FILE_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${PROCESS_FILE_SERVICE_METRIC_GRPC_PORT}"
+    log_path: "${PROCESS_FILE_SERVICE_LOG_PATH}"
+    batch_size: 20
+    marker_dev_mode: false
+    min_chunk_chars: 20
+    min_chunk_tokens: 8
+    max_chunk_tokens: 160
+    semantic_similarity_threshold: 0.85
+    chunk_overlap_sentences: 1
+    topics:
+        process_file_request: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_REQUEST_TOPIC}"
+        process_file_group: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_GROUP}"
+        process_file_result: "${PROCESS_FILE_SERVICE_KAFKA_PROCESS_FILE_RESULT_TOPIC}"
+rag_service:
+    port: "${RAG_SERVICE_PORT}"
+    log_path: "${RAG_SERVICE_LOG_PATH}"
+    qdrant_host: "${RAG_QDRANT_HOST}"
+    qdrant_port: "${RAG_QDRANT_PORT}"
+    qdrant_use_gRPC: ${RAG_QDRANT_USE_GRPC}
+    qdrant_request_timeout_seconds: 15
+    qdrant_retry_attempts: 3
+    qdrant_retry_backoff_ms: 300
+    rag_id_grpc: "${RAG_ID_GRPC}"
+    rag_id_monitoring: "${RAG_ID_MONITORING}"
+    rag_port_metric_grpc: "${RAG_PORT_METRIC_GRPC}"
+orchestrator_service:
+    port: "${ORCHESTRATOR_SERVICE_PORT}"
+    log_path: "${ORCHESTRATOR_SERVICE_LOG_PATH}"
+    session_ttl_seconds: 1800
+    memory_history_top_k: ${ORCHESTRATOR_SERVICE_MEMORY_HISTORY_TOP_K}
+    rag_retrieval_top_k: ${ORCHESTRATOR_RAG_RETRIEVAL_TOP_K}
+    vectordb:
+        shards: ${ORCHESTRATOR_VECTORDB_SHARDS}
+        replication_factor: ${ORCHESTRATOR_VECTORDB_REPLICATION_FACTOR}
+        on_disk_payload: ${ORCHESTRATOR_VECTORDB_ON_DISK_PAYLOAD}
+        optimizers_memmap: ${ORCHESTRATOR_VECTORDB_OPTIMIZERS_MEMMAP}
+        text_vector_size: ${ORCHESTRATOR_VECTORDB_TEXT_VECTOR_SIZE}
+        text_vector_distance: "${ORCHESTRATOR_VECTORDB_TEXT_VECTOR_DISTANCE}"
+        image_vector_size: ${ORCHESTRATOR_VECTORDB_IMAGE_VECTOR_SIZE}
+        image_vector_distance: "${ORCHESTRATOR_VECTORDB_IMAGE_VECTOR_DISTANCE}"
+    pre_processing:
+        model: ""
+        temperature: 0
