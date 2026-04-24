@@ -67,7 +67,7 @@ services:
       GF_PATHS_DATA: /var/lib/grafana
     volumes:
       - ${GRAFANA_DATA_VOLUME:-grafana-data}:/var/lib/grafana
-      - ${GRAFANA_PROVISIONING_DIR:-./monitoring/grafana/provisioning}:/etc/grafana/provisioning:ro
+      - ${GRAFANA_DATASOURCES_FILE:-./monitoring/grafana/datasources.yaml}:/etc/grafana/provisioning/datasources/datasources.yaml:ro
     command: >
       sh -euc 'mkdir -p /var/lib/grafana && chown -R 472:472 /var/lib/grafana && exec /run.sh'
     depends_on:
