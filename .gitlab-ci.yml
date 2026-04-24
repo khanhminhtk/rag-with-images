@@ -47,9 +47,11 @@ build:
         - export ORT_VER=1.20.1
         - export ORT_USE_CUDA=ON
         - export ORT_PACKAGE="onnxruntime-linux-x64-gpu-${ORT_VER}.tgz"
-        - ldconfig -p | grep -E 'libcublasLt.so.12|libcudart.so.12|libcudnn.so.9' || true
         - |
-            if ! ldconfig -p | grep -q 'libcudnn.so.9'; then
+            LD_CONFIG_CACHE="$(ldconfig -p || true)"
+            printf '%s\n' "$LD_CONFIG_CACHE" | grep -E 'libcublasLt.so.12|libcudart.so.12|libcudnn.so.9' || true
+
+            if [[ "$LD_CONFIG_CACHE" != *"libcudnn.so.9"* ]]; then
               echo "[CI] libcudnn.so.9 not found on runner -> fallback to ONNX Runtime CPU package"
               export ORT_USE_CUDA=OFF
               export ORT_PACKAGE="onnxruntime-linux-x64-${ORT_VER}.tgz"
