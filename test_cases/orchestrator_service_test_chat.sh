@@ -6,8 +6,8 @@ ORCHESTRATOR_HOST="${ORCHESTRATOR_HOST:-${SERVICE_HOST}:${ORCHESTRATOR_SERVICE_P
 BASE_URL="http://${ORCHESTRATOR_HOST}"
 
 SESSION_ID="${SESSION_ID:-session_1234678}"
-QUERY="${QUERY:-Ảnh này nó nói về gì?}"
-IMAGE_PATH="${IMAGE_PATH:-$ROOT_DIR/data/test/Screenshot_20260410_162759.png}"
+QUERY="${QUERY:-Noi dung tai lieu nay la gi?}"
+IMAGE_PATH="${IMAGE_PATH:-}"
 UUID="${UUID:-ai_sota_0022}"
 
 echo "== [1] Call orchestrator chat API =="
