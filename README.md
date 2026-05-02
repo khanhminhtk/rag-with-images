@@ -476,7 +476,7 @@ Pipeline gồm các stage:
 - chạy chuỗi test E2E theo thứ tự phụ thuộc,
 - deploy artifact runtime và kiểm tra log sau deploy.
 
-[[Result của pipeline CI trên GitLab]](docs/cicd/result_pipeline.png)
+![[Result của pipeline CI trên GitLab]](docs/cicd/result_pipeline.png)
 
 ## 11. Test case và thứ tự chạy
 
